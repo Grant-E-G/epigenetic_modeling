@@ -8,7 +8,7 @@ The model components are implemented in Rust and numerical checks pass. The real
 |---|---|---|---|
 | GSE225171 | Published processed Polycomb summary, 1,131 cells | 11 mice | Mean beta 0.05523 → 0.07019 from 10 to 100 weeks; SD 0.00768 → 0.01971. Matches reported summaries closely. |
 | GSE179847 | Full 865,817-probe processed matrix, 479 arrays | Nine donors / 67 culture groups | Control-group donor-averaged endpoint absolute change 0.06889 beta units; 95% replicate bootstrap [0.06047, 0.07917]. |
-| GSE73115 | Full 485,577-probe processed matrix, 180 arrays | 86 people | Ten-year mean absolute paired change 0.01767; 95% replicate bootstrap [0.01697, 0.01844]. |
+| GSE73115 | Full 485,577-probe processed matrix, 180 arrays | 86 people / 43 twin pairs | Ten-year mean absolute paired change 0.01767; 95% replicate bootstrap [0.01697, 0.01844]. |
 
 The single-cell raw archives were also downloaded, but genomic Polycomb averages were not independently rebuilt from coverage. The published summary contains one fewer cell than the article reports. Array pairs require detection p ≤ 0.01 at both endpoints; blood technical duplicates are pooled per person/year after this filter. Fibroblast groups preserve treatment/culture identity. Neither aggregate measure is an intrinsic cellular error rate.
 
@@ -55,3 +55,7 @@ Exploratory ESL F2/F8 checks have run with imported external sequence/context/st
 The literature review is in [notes/reading_list.md](../../notes/reading_list.md), with prior-art distinctions in [novelty_baselines.md](novelty_baselines.md). The combination is candidate novelty; hierarchical fidelity inference, stochastic clocks, latent switching and epigenetic first passage are already established ingredients.
 
 Run `make check` and `make reproduce` from the repository root. The latter recreates core reports from checksum-verified local downloads.
+
+## Continued validation
+
+See [extended results](validation_followup.md) for larger donor/chromosome-held-out stability forecasts, restricted pooled M1/M2 tests, full-matrix matching sensitivity and a measured proliferation pilot. These supersede the earlier statement that all held-out F1/matching sensitivity work was absent, but do not complete the functional-constraint gate. The blood cohort consists of twin pairs: person bootstrap intervals above do not account for family dependence, and person-held-out predictions may train on the co-twin. Family mappings are missing from downloaded GEO metadata.

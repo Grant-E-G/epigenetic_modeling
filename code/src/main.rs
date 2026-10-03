@@ -390,7 +390,7 @@ fn fibro_metadata(root: &str) -> Result<BTreeMap<String, Sample>> {
     finish(&mut current, &attrs, &mut m);
     Ok(m)
 }
-fn arrays(root: &str, out: &str, fibro: bool, limit: Option<usize>) -> Result<()> {
+fn arrays(root: &str, out: &str, fibro: bool, limit: Option<usize>, matching: &str) -> Result<()> {
     let acc = if fibro { "GSE179847" } else { "GSE73115" };
     let filename = if fibro {
         "GSE179847_matrix.csv.gz"
@@ -473,6 +473,11 @@ fn arrays(root: &str, out: &str, fibro: bool, limit: Option<usize>) -> Result<()
     let (mut sites, mut valid_sites) = (0, 0);
     let mut subset = writer(&format!("{out}/{acc}_kinetic_subset.tsv"))?;
     writeln!(subset, "cpg\tsample\tdonor\tlineage\ttime\tbeta")?;
+    let mut forecast = writer(&format!("{out}/{acc}_forecast_pairs.tsv"))?;
+    writeln!(
+        forecast,
+        "cpg\tdonor\tlineage\tstart\tduration\tearly\tlate"
+    )?;
     loop {
         l.clear();
         if r.read_line(&mut l)? == 0 {
@@ -555,14 +560,24 @@ fn arrays(root: &str, out: &str, fibro: bool, limit: Option<usize>) -> Result<()
                         if contrast_pairs.len() >= 3 {
                             let contrast_early: Vec<_> =
                                 contrast_pairs.iter().map(|(_, x, _)| *x).collect();
+                            let (beta_bins, seq_bins, density_bins) = match matching {
+                                "coarse" => (10.0, 5.0, 50.0),
+                                "fine" => (40.0, 20.0, 200.0),
+                                _ => (20.0, 10.0, 100.0),
+                            };
+                            let density_bin = if matching == "no_density" {
+                                0
+                            } else {
+                                (f.density * density_bins).floor() as u32
+                            };
                             let key = format!(
                                 "{}:{}:{}:{}:{}:{}",
                                 f.chrom,
                                 f.island,
                                 regulatory,
-                                (mean(&contrast_early) * 20.0).floor() as u32,
-                                (f.density * 100.0).floor() as u32,
-                                (score * 10.0).floor() as u32
+                                (mean(&contrast_early) * beta_bins).floor() as u32,
+                                density_bin,
+                                (score * seq_bins).floor() as u32
                             );
                             let g = matched.entry(key).or_insert_with(|| MatchedStratum {
                                 values: vec![],
@@ -607,6 +622,26 @@ fn arrays(root: &str, out: &str, fibro: bool, limit: Option<usize>) -> Result<()
                 variance(&early),
                 variance(&late)
             )?;
+        }
+        // Denser, outcome-independent paired subset for held-out stability prediction.
+        if sites % 256 == 0 {
+            for (ia, ib) in &pairs {
+                if fibro && samples[*ia].treatment != "Control" {
+                    continue;
+                }
+                if let (Some(x), Some(y)) = (values[*ia], values[*ib]) {
+                    let s = &samples[*ia];
+                    writeln!(
+                        forecast,
+                        "{}\t{}\t{}\t{}\t{}\t{x}\t{y}",
+                        a[0],
+                        s.donor,
+                        s.lineage,
+                        s.time,
+                        samples[*ib].time - s.time
+                    )?;
+                }
+            }
         }
         // Fixed, outcome-independent systematic subset for compact inference: every 4096th row.
         if sites % 4096 == 0 {
@@ -1348,6 +1383,772 @@ fn matched_results(
     Ok(())
 }
 
+// Empirical F1 gate: forecast log absolute paired change, not infer microscopic rates.
+#[derive(Clone)]
+struct ForecastPair {
+    cpg: String,
+    donor: String,
+    early: f64,
+    change: f64,
+    x: Vec<f64>,
+    q: bool,
+    chrom: u32,
+    island: String,
+    regulatory: String,
+    sequence: f64,
+    density: f64,
+}
+#[derive(Clone)]
+struct NormalEquations {
+    gram: Vec<Vec<f64>>,
+    rhs: Vec<f64>,
+    yy: f64,
+    weight: f64,
+}
+impl NormalEquations {
+    fn new(p: usize) -> Self {
+        Self {
+            gram: vec![vec![0.0; p]; p],
+            rhs: vec![0.0; p],
+            yy: 0.0,
+            weight: 0.0,
+        }
+    }
+    fn add(&mut self, row: &ForecastPair, weight: f64) {
+        self.add_xy(&row.x, (row.change.abs() + 0.001).ln(), weight);
+    }
+    fn add_xy(&mut self, x: &[f64], y: f64, weight: f64) {
+        self.yy += weight * y * y;
+        self.weight += weight;
+        for (i, xi) in x.iter().enumerate().filter(|(_, x)| **x != 0.0) {
+            self.rhs[i] += weight * xi * y;
+            for (j, xj) in x.iter().enumerate().take(i + 1).filter(|(_, x)| **x != 0.0) {
+                self.gram[i][j] += weight * xi * xj;
+                if i != j {
+                    self.gram[j][i] += weight * xi * xj;
+                }
+            }
+        }
+    }
+    fn subtract(&self, other: &Self) -> Self {
+        Self {
+            gram: self
+                .gram
+                .iter()
+                .zip(&other.gram)
+                .map(|(a, b)| a.iter().zip(b).map(|(x, y)| x - y).collect())
+                .collect(),
+            rhs: self
+                .rhs
+                .iter()
+                .zip(&other.rhs)
+                .map(|(x, y)| x - y)
+                .collect(),
+            yy: self.yy - other.yy,
+            weight: self.weight - other.weight,
+        }
+    }
+    fn fit(&self, p: usize, penalty: f64) -> Result<(Vec<f64>, f64)> {
+        let mut a: Vec<Vec<f64>> = (0..p)
+            .map(|i| {
+                let mut row = self.gram[i][..p].to_vec();
+                row[i] += if i == 0 { 1e-10 } else { penalty * self.weight };
+                row.push(self.rhs[i]);
+                row
+            })
+            .collect();
+        for k in 0..p {
+            let pivot = (k..p)
+                .max_by(|i, j| a[*i][k].abs().total_cmp(&a[*j][k].abs()))
+                .unwrap();
+            a.swap(k, pivot);
+            if a[k][k].abs() < 1e-12 {
+                return Err("singular forecast normal equations".into());
+            }
+            let d = a[k][k];
+            for j in k..=p {
+                a[k][j] /= d;
+            }
+            for i in 0..p {
+                if i != k {
+                    let d = a[i][k];
+                    for j in k..=p {
+                        a[i][j] -= d * a[k][j];
+                    }
+                }
+            }
+        }
+        let b: Vec<_> = a.iter().map(|r| r[p]).collect();
+        let linear: f64 = b.iter().enumerate().map(|(i, v)| v * self.rhs[i]).sum();
+        let quadratic: f64 = b
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                v * b
+                    .iter()
+                    .enumerate()
+                    .map(|(j, u)| self.gram[i][j] * u)
+                    .sum::<f64>()
+            })
+            .sum();
+        let variance = ((self.yy - 2.0 * linear + quadratic) / self.weight).max(1e-6);
+        Ok((b, variance))
+    }
+}
+fn forecast_rows(
+    acc: &str,
+    out: &str,
+    features: &BTreeMap<String, Feature>,
+) -> Result<Vec<ForecastPair>> {
+    let mut rows = vec![];
+    let mut lines = reader(&format!("{out}/{acc}_forecast_pairs.tsv"))?.lines();
+    lines.next();
+    for line in lines {
+        let a = fields(&line?, '\t');
+        let Some(f) = features.get(&a[0]) else {
+            continue;
+        };
+        let Some(sequence) = f.sequence else {
+            continue;
+        };
+        let Ok(chrom) = f.chrom.parse::<u32>() else {
+            continue;
+        };
+        if !(1..=22).contains(&chrom) || f.island.is_empty() || f.island == "Unknown" {
+            continue;
+        }
+        let early: f64 = a[5].parse()?;
+        let late: f64 = a[6].parse()?;
+        let regulatory = if f.regulatory.contains("TSS") {
+            "promoter"
+        } else if f.regulatory.contains("Body") {
+            "body"
+        } else {
+            "other"
+        };
+        // Only information available at the earlier observation and fixed external annotations.
+        let mut x = vec![1.0, early, early * early];
+        x.extend((1..10).map(|i| (early - i as f64 / 10.0).max(0.0)));
+        x.extend([
+            sequence,
+            sequence * sequence,
+            f.density * 10.0,
+            a[3].parse::<f64>()? / 100.0,
+            a[4].parse::<f64>()? / 100.0,
+            f64::from(a[1].starts_with("SURF1")),
+            f64::from(a[2].ends_with("ox3")),
+        ]);
+        x.extend(
+            ["Island", "N_Shore", "S_Shore", "N_Shelf", "S_Shelf"]
+                .map(|s| f64::from(f.island == s)),
+        );
+        x.extend([
+            f64::from(regulatory == "promoter"),
+            f64::from(regulatory == "body"),
+        ]);
+        x.extend((2..=22).map(|c| f64::from(chrom == c)));
+        x.push(f64::from(f.esl));
+        rows.push(ForecastPair {
+            cpg: a[0].clone(),
+            donor: a[1].clone(),
+            early,
+            change: late - early,
+            x,
+            q: f.esl,
+            chrom,
+            island: f.island.clone(),
+            regulatory: regulatory.into(),
+            sequence,
+            density: f.density,
+        });
+    }
+    if rows.is_empty() {
+        return Err(format!("{acc}: no forecast rows").into());
+    }
+    Ok(rows)
+}
+fn forecasting(out: &str) -> Result<()> {
+    let features = load_features()?;
+    let mut w = writer(&format!("{out}/forecast_comparison.csv"))?;
+    writeln!(w,"dataset,split,penalty,held_out_donor,n,n_esl,log_change_mse_gain,esl_log_change_mse_gain,log_predictive_gain,esl_coefficient")?;
+    let mut mw = writer(&format!("{out}/matching_sensitivity.csv"))?;
+    writeln!(
+        mw,
+        "dataset,matching,held_out_donor,matched_esl_sites,absolute_change_contrast"
+    )?;
+    for acc in ["GSE179847", "GSE73115"] {
+        let rows = forecast_rows(acc, out, &features)?;
+        let donors: Vec<_> = rows
+            .iter()
+            .map(|r| r.donor.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let counts: BTreeMap<_, _> = donors
+            .iter()
+            .map(|d| (d.clone(), rows.iter().filter(|r| &r.donor == d).count()))
+            .collect();
+        let p = rows[0].x.len();
+        let sites = rows.iter().map(|r| &r.cpg).collect::<BTreeSet<_>>().len();
+        let esl = rows
+            .iter()
+            .filter(|r| r.q)
+            .map(|r| &r.cpg)
+            .collect::<BTreeSet<_>>()
+            .len();
+        println!(
+            "{acc}: forecast {sites} annotated sites ({esl} ESL), {} pairs, {} donors",
+            rows.len(),
+            donors.len()
+        );
+        let mut all = NormalEquations::new(p);
+        let mut by_donor: BTreeMap<_, _> = donors
+            .iter()
+            .map(|d| (d.clone(), NormalEquations::new(p)))
+            .collect();
+        for r in &rows {
+            let weight = 1.0 / counts[&r.donor] as f64;
+            all.add(r, weight);
+            by_donor.get_mut(&r.donor).unwrap().add(r, weight);
+        }
+        for split in ["donor", "donor_and_chromosome"] {
+            let folds = if split == "donor" { donors.len() } else { 5 };
+            for fold in 0..folds {
+                for genome_fold in 0..if split == "donor" { 1 } else { 5 } {
+                    let heldout = |r: &ForecastPair| {
+                        if split == "donor" {
+                            r.donor == donors[fold]
+                        } else {
+                            donors.binary_search(&r.donor).unwrap() % 5 == fold
+                        }
+                    };
+                    let test: Vec<_> = rows
+                        .iter()
+                        .filter(|r| {
+                            heldout(r) && (split == "donor" || r.chrom as usize % 5 == genome_fold)
+                        })
+                        .collect();
+                    let train = if split == "donor" {
+                        all.subtract(&by_donor[&donors[fold]])
+                    } else {
+                        let mut train = NormalEquations::new(p);
+                        for r in rows
+                            .iter()
+                            .filter(|r| !heldout(r) && r.chrom as usize % 5 != genome_fold)
+                        {
+                            train.add(r, 1.0 / counts[&r.donor] as f64);
+                        }
+                        train
+                    };
+                    for penalty in [0.001, 0.01, 0.1] {
+                        let (b0, v0) = train.fit(p - 1, penalty)?;
+                        let (b1, v1) = train.fit(p, penalty)?;
+                        let mut scores: BTreeMap<String, (usize, usize, f64, f64, f64)> =
+                            BTreeMap::new();
+                        for r in &test {
+                            let y = (r.change.abs() + 0.001).ln();
+                            let predict =
+                                |b: &[f64]| b.iter().zip(&r.x).map(|(a, b)| a * b).sum::<f64>();
+                            let e0 = y - predict(&b0);
+                            let e1 = y - predict(&b1);
+                            let s = scores.entry(r.donor.clone()).or_default();
+                            s.0 += 1;
+                            s.1 += usize::from(r.q);
+                            s.2 += e0 * e0 - e1 * e1;
+                            if r.q {
+                                s.3 += e0 * e0 - e1 * e1;
+                            }
+                            s.4 += normal_logpdf(y, predict(&b1), v1)
+                                - normal_logpdf(y, predict(&b0), v0);
+                        }
+                        for (donor, (n, nq, mse, qmse, lp)) in scores {
+                            writeln!(
+                                w,
+                                "{acc},{split},{penalty},{donor},{n},{nq},{},{},{},{}",
+                                mse / n as f64,
+                                if nq > 0 { qmse / nq as f64 } else { f64::NAN },
+                                lp / n as f64,
+                                b1[p - 1]
+                            )?;
+                        }
+                    }
+                }
+            }
+        }
+        // Matching reference is computed from training donors only; held-out outcomes never set strata.
+        for donor in &donors {
+            let mut early: BTreeMap<String, (f64, usize)> = BTreeMap::new();
+            for other in donors.iter().filter(|d| *d != donor) {
+                let mut within: BTreeMap<&str, (f64, usize)> = BTreeMap::new();
+                for r in rows.iter().filter(|r| &r.donor == other) {
+                    let s = within.entry(&r.cpg).or_default();
+                    s.0 += r.early;
+                    s.1 += 1;
+                }
+                for (cpg, (sum, n)) in within {
+                    let s = early.entry(cpg.into()).or_default();
+                    s.0 += sum / n as f64;
+                    s.1 += 1;
+                }
+            }
+            for matching in [
+                "coarse",
+                "standard",
+                "fine",
+                "no_sequence",
+                "no_density",
+                "no_context",
+            ] {
+                let mut groups: BTreeMap<String, BTreeMap<String, (bool, f64, usize)>> =
+                    BTreeMap::new();
+                for r in rows.iter().filter(|r| &r.donor == donor) {
+                    let Some((sum, n)) = early.get(&r.cpg) else {
+                        continue;
+                    };
+                    let (beta_bins, seq_bins, density_bins) = match matching {
+                        "coarse" => (10.0, 5.0, 50.0),
+                        "fine" => (40.0, 20.0, 200.0),
+                        _ => (20.0, 10.0, 100.0),
+                    };
+                    let context = if matching == "no_context" {
+                        String::new()
+                    } else {
+                        format!("{}:{}", r.island, r.regulatory)
+                    };
+                    let key = format!(
+                        "{}:{}:{}:{}:{}",
+                        r.chrom,
+                        context,
+                        (sum / *n as f64 * beta_bins).floor(),
+                        if matching == "no_sequence" {
+                            0.0
+                        } else {
+                            (r.sequence * seq_bins).floor()
+                        },
+                        if matching == "no_density" {
+                            0.0
+                        } else {
+                            (r.density * density_bins).floor()
+                        }
+                    );
+                    let s = groups
+                        .entry(key)
+                        .or_default()
+                        .entry(r.cpg.clone())
+                        .or_insert((r.q, 0.0, 0));
+                    s.1 += r.change.abs();
+                    s.2 += 1;
+                }
+                let (mut contrast, mut weight) = (0.0, 0usize);
+                for g in groups.values() {
+                    let q: Vec<_> = g
+                        .values()
+                        .filter(|r| r.0)
+                        .map(|r| r.1 / r.2 as f64)
+                        .collect();
+                    let c: Vec<_> = g
+                        .values()
+                        .filter(|r| !r.0)
+                        .map(|r| r.1 / r.2 as f64)
+                        .collect();
+                    if !q.is_empty() && c.len() >= 2 {
+                        contrast += q.len() as f64 * (mean(&q) - mean(&c));
+                        weight += q.len();
+                    }
+                }
+                writeln!(
+                    mw,
+                    "{acc},{matching},{donor},{weight},{}",
+                    if weight > 0 {
+                        contrast / weight as f64
+                    } else {
+                        f64::NAN
+                    }
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+// Restricted bulk M1/M2 test at externally unmethylated ESLs and low-baseline controls.
+// Common gain/return rates are a deliberately simple pooling assumption.
+fn kinetic_followup(out: &str) -> Result<()> {
+    let features = load_features()?;
+    let mut w = writer(&format!("{out}/pooled_kinetic_comparison.csv"))?;
+    writeln!(w,"dataset,fold,held_out_donor,n,n_esl,model,log_predictive_gain_vs_m1,mse_gain_vs_m1,mse_gain_vs_constant,log_gain_rate,log_return_rate,protection_effect,restoration_effect")?;
+    for acc in ["GSE179847", "GSE73115"] {
+        let rows: Vec<_> = forecast_rows(acc, out, &features)?
+            .into_iter()
+            .filter(|r| r.early <= 0.2)
+            .collect();
+        let donors: Vec<_> = rows
+            .iter()
+            .map(|r| r.donor.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let counts: BTreeMap<_, _> = donors
+            .iter()
+            .map(|d| (d.clone(), rows.iter().filter(|r| &r.donor == d).count()))
+            .collect();
+        let prediction = |r: &ForecastPair, p: &[f64]| {
+            probability(
+                r.early,
+                (p[0] - p.get(2).copied().unwrap_or(0.0) * f64::from(r.q)).exp(),
+                (p[1] + p.get(3).copied().unwrap_or(0.0) * f64::from(r.q)).exp(),
+                r.x[16],
+            )
+        };
+        for fold in 0..5 {
+            let test_fold = |r: &ForecastPair| donors.binary_search(&r.donor).unwrap() % 5 == fold;
+            let train: Vec<_> = rows.iter().filter(|r| !test_fold(r)).collect();
+            let sse = |p: &[f64]| {
+                let (mut sum, mut weight) = (0.0, 0.0);
+                for r in &train {
+                    let wt = 1.0 / counts[&r.donor] as f64;
+                    sum += wt * (r.early + r.change - prediction(r, p)).powi(2);
+                    weight += wt;
+                }
+                sum / weight
+            };
+            let (_, m1) = optimize(
+                sse,
+                &[vec![-4.0, -2.0], vec![-2.0, -1.0], vec![-6.0, 0.0]],
+                &[(-10.0, 4.0); 2],
+            );
+            let v1 = sse(&m1).max(1e-6);
+            for (model, bound) in [
+                ("m1", (0.0, 0.0)),
+                ("m2_protection", (0.0, 6.0)),
+                ("m2_signed", (-6.0, 6.0)),
+            ] {
+                let p = if model == "m1" {
+                    m1.clone()
+                } else {
+                    let mut start = m1.clone();
+                    start.extend([0.0, 0.0]);
+                    let mut alt = start.clone();
+                    alt[2] = 1.0;
+                    alt[3] = 1.0;
+                    optimize(
+                        sse,
+                        &[start, alt],
+                        &[(-10.0, 4.0), (-10.0, 4.0), bound, bound],
+                    )
+                    .1
+                };
+                let v = sse(&p).max(1e-6);
+                let mut scores: BTreeMap<String, (usize, usize, f64, f64, f64)> = BTreeMap::new();
+                for r in rows.iter().filter(|r| test_fold(r)) {
+                    let y = r.early + r.change;
+                    let mu = prediction(r, &p);
+                    let mu1 = prediction(r, &m1);
+                    let s = scores.entry(r.donor.clone()).or_default();
+                    s.0 += 1;
+                    s.1 += usize::from(r.q);
+                    s.2 += normal_logpdf(y, mu, v) - normal_logpdf(y, mu1, v1);
+                    s.3 += (y - mu1).powi(2) - (y - mu).powi(2);
+                    s.4 += r.change.powi(2) - (y - mu).powi(2);
+                }
+                for (donor, (n, nq, lp, mse, constant)) in scores {
+                    writeln!(
+                        w,
+                        "{acc},{fold},{donor},{n},{nq},{model},{},{},{},{},{},{},{}",
+                        lp / n as f64,
+                        mse / n as f64,
+                        constant / n as f64,
+                        p[0],
+                        p[1],
+                        p.get(2).copied().unwrap_or(0.0),
+                        p.get(3).copied().unwrap_or(0.0)
+                    )?;
+                }
+            }
+        }
+        println!(
+            "{acc}: pooled M1/M2 scored {} low-baseline pairs",
+            rows.len()
+        );
+    }
+    Ok(())
+}
+
+// Independent measured proliferation outcome; ESL is a stability mask, not an identity mask.
+fn growth_followup(root: &str, out: &str) -> Result<()> {
+    let features = load_features()?;
+    let rows = forecast_rows("GSE179847", out, &features)?;
+    let mut attributes: Vec<BTreeMap<String, String>> = vec![];
+    let mut current = BTreeMap::new();
+    for line in reader(&format!("{root}/GSE179847_family.soft.gz"))?.lines() {
+        let line = line?;
+        if line.starts_with("^SAMPLE = ") {
+            if !current.is_empty() {
+                attributes.push(std::mem::take(&mut current));
+            }
+        } else if let Some(v) = line.strip_prefix("!Sample_characteristics_ch1 = ") {
+            if let Some((k, v)) = v.split_once(": ") {
+                current.insert(k.to_lowercase(), v.into());
+            }
+        }
+    }
+    attributes.push(current);
+    type GrowthEndpoints = (String, f64, f64, Vec<f64>, Vec<f64>);
+    let mut pairs: BTreeMap<String, GrowthEndpoints> = BTreeMap::new();
+    let mut lines = reader(&format!("{out}/GSE179847_forecast_pairs.tsv"))?.lines();
+    lines.next();
+    for line in lines {
+        let a = fields(&line?, '\t');
+        pairs.entry(a[2].clone()).or_insert((
+            a[1].clone(),
+            a[3].parse()?,
+            a[4].parse()?,
+            vec![],
+            vec![],
+        ));
+    }
+    // Use exactly the same annotated site universe as the forecast, for both distances.
+    let mut lines = reader(&format!("{out}/GSE179847_forecast_pairs.tsv"))?.lines();
+    lines.next();
+    let eligible: BTreeSet<_> = rows.iter().map(|r| r.cpg.clone()).collect();
+    for line in lines {
+        let a = fields(&line?, '\t');
+        if !eligible.contains(&a[0]) {
+            continue;
+        }
+        let d = (a[6].parse::<f64>()? - a[5].parse::<f64>()?).abs();
+        let pair = pairs.get_mut(&a[2]).unwrap();
+        pair.3.push(d);
+        if features[&a[0]].esl {
+            pair.4.push(d);
+        }
+    }
+    let mut scored: Vec<(String, String, Vec<f64>, f64)> = vec![];
+    let mut w = writer(&format!("{out}/growth_pairs.csv"))?;
+    writeln!(w,"donor,lineage,duration,early_doubling_hours,late_doubling_hours,log_doubling_ratio,unweighted_distance,esl_distance,n_sites,n_esl")?;
+    for (lineage, (donor, start, duration, all, q)) in pairs {
+        let endpoint = |time: f64| {
+            attributes.iter().find_map(|a| {
+                if a.get("cell_line_group")? != &lineage
+                    || (numeric(a.get("days_grown_udays")?)? - time).abs() > 1e-5
+                {
+                    return None;
+                }
+                numeric(a.get("population_doubling_time_uhours_per_division")?).filter(|v| *v > 0.0)
+            })
+        };
+        let (Some(early), Some(late)) = (endpoint(start), endpoint(start + duration)) else {
+            continue;
+        };
+        if q.is_empty() || all.is_empty() {
+            continue;
+        }
+        let y = (late / early).ln();
+        let d = mean(&all);
+        let qd = mean(&q);
+        writeln!(
+            w,
+            "{donor},{lineage},{duration},{early},{late},{y},{d},{qd},{},{}",
+            all.len(),
+            q.len()
+        )?;
+        scored.push((
+            donor,
+            lineage,
+            vec![
+                1.0,
+                duration / 100.0,
+                (early / 48.0).ln(),
+                d * 10.0,
+                qd * 10.0,
+            ],
+            y,
+        ));
+    }
+    let donors: BTreeSet<_> = scored.iter().map(|r| r.0.clone()).collect();
+    let mut w = writer(&format!("{out}/growth_prediction.csv"))?;
+    writeln!(w,"held_out_donor,n,penalty,unweighted_mse_gain_vs_time,esl_mse_gain_vs_time,combined_mse_gain_vs_time")?;
+    for donor in &donors {
+        let mut train = [
+            NormalEquations::new(3),
+            NormalEquations::new(4),
+            NormalEquations::new(4),
+            NormalEquations::new(5),
+        ];
+        for (d, _, x, y) in scored.iter().filter(|r| &r.0 != donor) {
+            let weight = 1.0 / scored.iter().filter(|r| &r.0 == d).count() as f64;
+            let designs = [
+                x[..3].to_vec(),
+                x[..4].to_vec(),
+                vec![x[0], x[1], x[2], x[4]],
+                x.clone(),
+            ];
+            for (t, x) in train.iter_mut().zip(designs) {
+                t.add_xy(&x, *y, weight);
+            }
+        }
+        for penalty in [0.001, 0.01, 0.1] {
+            let b: Vec<_> = train
+                .iter()
+                .map(|t| t.fit(t.rhs.len(), penalty))
+                .collect::<Result<Vec<_>>>()?;
+            let mut errors = [0.0; 4];
+            let mut n = 0;
+            for (_, _, x, y) in scored.iter().filter(|r| &r.0 == donor) {
+                let designs = [
+                    x[..3].to_vec(),
+                    x[..4].to_vec(),
+                    vec![x[0], x[1], x[2], x[4]],
+                    x.clone(),
+                ];
+                for ((err, (coef, _)), x) in errors.iter_mut().zip(&b).zip(designs) {
+                    *err += (y - coef.iter().zip(x).map(|(a, b)| a * b).sum::<f64>()).powi(2);
+                }
+                n += 1;
+            }
+            writeln!(
+                w,
+                "{donor},{n},{penalty},{},{},{}",
+                (errors[0] - errors[1]) / n as f64,
+                (errors[0] - errors[2]) / n as f64,
+                (errors[0] - errors[3]) / n as f64
+            )?;
+        }
+    }
+    println!(
+        "Growth follow-up: {} culture endpoints, {} held-out donors",
+        scored.len(),
+        donors.len()
+    );
+    Ok(())
+}
+
+fn followup_report(out: &str) -> Result<()> {
+    use rand::{Rng, SeedableRng};
+    let mut grouped: BTreeMap<String, BTreeMap<String, (f64, f64)>> = BTreeMap::new();
+    let mut add = |key: String, donor: String, value: f64, weight: f64| {
+        if value.is_finite() && weight > 0.0 {
+            let s = grouped.entry(key).or_default().entry(donor).or_default();
+            s.0 += value * weight;
+            s.1 += weight;
+        }
+    };
+    for line in reader(&format!("{out}/forecast_comparison.csv"))?
+        .lines()
+        .skip(1)
+    {
+        let a = fields(&line?, ',');
+        add(
+            format!("{} forecast {} penalty={} MSE gain", a[0], a[1], a[2]),
+            a[3].clone(),
+            a[6].parse()?,
+            a[4].parse()?,
+        );
+        add(
+            format!("{} forecast {} penalty={} ESL MSE gain", a[0], a[1], a[2]),
+            a[3].clone(),
+            a[7].parse()?,
+            a[5].parse()?,
+        );
+    }
+    for line in reader(&format!("{out}/pooled_kinetic_comparison.csv"))?
+        .lines()
+        .skip(1)
+    {
+        let a = fields(&line?, ',');
+        add(
+            format!("{} {} log density gain vs M1", a[0], a[5]),
+            a[2].clone(),
+            a[6].parse()?,
+            1.0,
+        );
+        add(
+            format!("{} {} MSE gain vs constant", a[0], a[5]),
+            a[2].clone(),
+            a[8].parse()?,
+            1.0,
+        );
+    }
+    for line in reader(&format!("{out}/growth_prediction.csv"))?
+        .lines()
+        .skip(1)
+    {
+        let a = fields(&line?, ',');
+        for (i, name) in [(3, "unweighted"), (4, "ESL"), (5, "combined")] {
+            add(
+                format!("growth {name} penalty={} MSE gain", a[2]),
+                a[0].clone(),
+                a[i].parse()?,
+                1.0,
+            );
+        }
+    }
+    for acc in ["GSE179847", "GSE73115"] {
+        for matching in ["standard", "coarse", "fine", "no_density"] {
+            let file = if matching == "standard" {
+                format!("{out}/{acc}_matched_replicates.csv")
+            } else {
+                format!("{out}/{acc}_{matching}_matched_replicates.csv")
+            };
+            for line in reader(&file)?.lines().skip(1) {
+                let a = fields(&line?, ',');
+                add(
+                    format!("{acc} full matching {matching} ESL-minus-control"),
+                    a[0].clone(),
+                    a[2].parse()?,
+                    1.0,
+                );
+            }
+        }
+    }
+    let mut w = writer(&format!("{out}/followup_summary.csv"))?;
+    writeln!(w,"comparison,biological_units,mean,bootstrap_lower,bootstrap_upper,units_with_positive_value,status")?;
+    let mut md = writer(&format!("{out}/validation_followup.md"))?;
+    writeln!(md,"# Continued validation (2026-10-03)\n\nThese exploratory tests strengthen the external **stability** signal, but do not validate essentiality, allocated maintenance, selection or biological identity loss. All gains compare predictions in excluded donors; positive MSE gain means lower error. Blood participants are twins: family IDs are unavailable in GEO, so person-held-out splits and person-bootstrap intervals are provisional.\n\n| Test | Units | Mean | 95% bootstrap |\n|---|---:|---:|---:|")?;
+    let mut rng = rand::rngs::StdRng::seed_from_u64(20261003);
+    for (key, units) in &grouped {
+        let values: Vec<_> = units.values().map(|(sum, n)| sum / n).collect();
+        let mut draws: Vec<_> = (0..4000)
+            .map(|_| {
+                (0..values.len())
+                    .map(|_| values[rng.gen_range(0..values.len())])
+                    .sum::<f64>()
+                    / values.len() as f64
+            })
+            .collect();
+        draws.sort_by(f64::total_cmp);
+        let status = if key.starts_with("GSE73115") {
+            "person_bootstrap_does_not_account_for_twins"
+        } else {
+            "fixed_fold_bootstrap_does_not_refit_training"
+        };
+        writeln!(
+            w,
+            "{key},{},{},{},{},{},{status}",
+            values.len(),
+            mean(&values),
+            draws[100],
+            draws[3899],
+            values.iter().filter(|v| **v > 0.0).count()
+        )?;
+        if key.contains("penalty=0.01") && !key.contains("ESL MSE")
+            || key.contains("full matching")
+            || key.contains("log density") && !key.contains(" m1 ")
+        {
+            writeln!(
+                md,
+                "| {key} | {} | {:.6} | [{:.6}, {:.6}] |",
+                values.len(),
+                mean(&values),
+                draws[100],
+                draws[3899]
+            )?;
+        }
+    }
+    writeln!(md,"\n## Interpretation and limits\n\n- Forecasts use every 256th input probe, detection filtering, and complete external sequence/context annotations: 1,530 fibroblast probes (85 ESL) and 1,682 blood probes (88 ESL). The response is log(abs(endpoint change)+0.001). The empirical ridge baseline includes starting beta splines, sequence, density, CGI/regulatory class, chromosome, duration/start time and fibroblast condition/oxygen proxies. Its augmented version adds one external ESL indicator. Fixed penalties 0.001/0.01/0.1 are sensitivity settings, not tuned on held-out outcomes. Five chromosome groups and five deterministic donor groups are jointly excluded for the stricter split. Shared CpGs remain in the donor-only test. This is an empirical predictive gate, not a mechanistic M2 likelihood. Sex, array batch, genome-wide density and blood composition remain unadjusted.\n- Pooled kinetic tests use the exact binary CTMC marginal, individual earlier beta as the initial probability, and a Gaussian bulk-array residual. They restrict both ESLs and controls to earlier beta <=0.2, and hold out five donor groups. M1 pools gain/return rates; M2 multiplies gain by exp(-alpha*q) and return by exp(beta*q). Both positive-only and signed effects are fit from two starts after three M1 starts. Rates use 100 days/years as their unit. Site/context heterogeneity is not fully modeled here; q coefficients reaching optimization bounds and protection/restoration tradeoffs forbid parameter-level biological interpretation. Small predictive gains are evidence for this restricted pooling model only. In blood, allowing signed effects fits alpha around -0.93 to -0.98 (higher gain at ESLs) and beta around 2.05 to 2.14 (higher return), and scores better than positive-only protection. Thus the observed stability does not specifically support suppressed away rates. Fibroblast beta repeatedly reaches plus/minus 6; restoration is not identified.\n- Full-matrix matching varies beta, density and sequence bin widths together (coarse/standard/fine), plus omission of density. These runs use cohort early means and the same external context as the initial analysis; they remain transductive. The sampled, donor-training-only matching exercise is recorded separately in matching_sensitivity.csv: sparse strict strata often have zero support. Unsupported comparisons are NaN, not zero effects.\n- Growth is a first independent biological endpoint: log(late/early measured population-doubling time), using the same DNA sample times. Only 11 culture endpoint pairs from eight donors have finite positive doubling measurements at both times. Forecasts compare time/starting-doubling-time covariates against additional unweighted and ESL absolute methylation distances, with donors excluded. This small pilot tests association with proliferation slowing, not identity loss; the ESL distance is not an independently defined functional weight. No threshold, causal mechanism or selection-versus-protection claim follows.\n- Bootstrap intervals resample donor-level fixed test scores and omit uncertainty from refitting and spatial probe dependence. Blood twins require family mapping for valid family-held-out inference. No multiple-comparison correction is claimed; all settings/results are retained.\n\nThe correct paired fibroblast RNA study is GSE179848 (downloaded and checksummed); the previously downloaded GSE225172 expression file belongs to the mouse study. RNA outcomes are not analyzed in this follow-up.\n\nRun `make followup` after `make reproduce` to regenerate these extended tests. Detailed comparisons are in forecast_comparison.csv, pooled_kinetic_comparison.csv, growth_pairs.csv, growth_prediction.csv, full matching CSVs and followup_summary.csv.")?;
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
     let cmd = args.get(1).map(String::as_str).unwrap_or("reproduce");
@@ -1360,27 +2161,43 @@ fn main() -> Result<()> {
             baseline(&c, out)?;
         }
         "arrays" => {
-            arrays(root, out, true, None)?;
-            arrays(root, out, false, None)?;
+            arrays(root, out, true, None, "standard")?;
+            arrays(root, out, false, None, "standard")?;
         }
-        "blood" => arrays(root, out, false, None)?,
+        "matching-followup" => {
+            for matching in ["coarse","fine","no_density"] {
+                let temporary=format!("data/derived/matching_runs/{matching}"); fs::create_dir_all(&temporary)?;
+                for (acc,fibro) in [("GSE179847",true),("GSE73115",false)] {
+                    arrays(root,&temporary,fibro,None,matching)?;
+                    for suffix in ["matched_mask","matched_replicates"] {
+                        fs::copy(format!("{temporary}/{acc}_{suffix}.csv"),format!("{out}/{acc}_{matching}_{suffix}.csv"))?;
+                    }
+                }
+            }
+        }
+        "blood" => arrays(root, out, false, None, "standard")?,
         "annotate" => {annotations(root,out)?;},
         "simulate" => simulation_checks(out)?,
         "report" => reports(out)?,
         "fit" => fit_real_baseline(out)?,
+        "forecast" => forecasting(out)?,
+        "kinetic-followup" => kinetic_followup(out)?,
+        "growth-followup" => growth_followup(root,out)?,
+        "followup-report" => followup_report(out)?,
         "reproduce" => {
             annotations(root,out)?;
             let c = cells(root, out)?;
             baseline(&c, out)?;
-            arrays(root, out, true, None)?;
-            arrays(root, out, false, None)?;
+            arrays(root, out, true, None, "standard")?;
+            arrays(root, out, false, None, "standard")?;
             fit_real_baseline(out)?;
+            forecasting(out)?;
             simulation_checks(out)?;
             reports(out)?;
         }
         _ => {
             return Err(
-                "usage: epidrift [baseline|arrays|blood|fit|simulate|report|reproduce] [raw-directory] [results-directory]"
+                "usage: epidrift [baseline|arrays|blood|fit|forecast|kinetic-followup|growth-followup|matching-followup|followup-report|simulate|report|reproduce] [raw-directory] [results-directory]"
                     .into(),
             )
         }
@@ -1393,6 +2210,28 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn regression_recovers_coefficients_and_removes_heldout_rows() {
+        let mut all = NormalEquations::new(2);
+        let mut heldout = NormalEquations::new(2);
+        let mut train = NormalEquations::new(2);
+        for i in 0..20 {
+            let x = [1.0, i as f64 / 10.0];
+            let y = 2.0 - 3.0 * x[1];
+            all.add_xy(&x, y, 1.0);
+            if i % 2 == 0 {
+                heldout.add_xy(&x, y, 1.0);
+            } else {
+                train.add_xy(&x, y, 1.0);
+            }
+        }
+        let removed = all.subtract(&heldout);
+        let (b, v) = removed.fit(2, 0.0).unwrap();
+        let (expected, _) = train.fit(2, 0.0).unwrap();
+        assert!((b[0] - 2.0).abs() < 1e-8 && (b[1] + 3.0).abs() < 1e-8);
+        assert!((b[0] - expected[0]).abs() < 1e-10 && (b[1] - expected[1]).abs() < 1e-10);
+        assert!(v <= 1.000001e-6);
+    }
     #[test]
     fn csv_quoted() {
         assert_eq!(

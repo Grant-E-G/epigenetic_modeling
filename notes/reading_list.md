@@ -46,3 +46,9 @@ The joint function-weighted protection/selection/identity framework remains a ca
 | Weighted distance predicts identity loss | Train reference/weights on separate data; test on paired RNA and a functional assay in held-out donors. | Unweighted distance, matched random masks, prespecified thresholds and direction-specific alternative distances. |
 
 The current code supplies model components and numerical checks for these questions. None of the functional claims is supported merely by the current simulation or aggregate fits. External ESL/sequence/context features and exploratory F2/F8 checks are now available; the next scientific gate is held-out F1 with independent essentiality/identity weights and matching sensitivity; a failed gate should be reported rather than bypassed with latent-state flexibility.
+
+### Additional validation data: longitudinal fibroblast multi-omics
+
+[A multi-omics longitudinal aging dataset in primary human fibroblasts with mitochondrial perturbations](https://www.nature.com/articles/s41597-022-01852-y), Scientific Data (2022), DOI 10.1038/s41597-022-01852-y. Provides methylation (GSE179847), RNA (GSE179848), culture proliferation and additional physiological measurements across healthy and SURF1 donor cultures. This makes it useful for testing whether methylation distance predicts an independently measured cellular outcome beyond culture duration. The current growth pilot uses endpoint doubling time; RNA remains unanalyzed. Replicative senescence/proliferation slowing is not a predefined loss of fibroblast identity, and common culture-time/treatment effects require held-out covariate comparison.
+
+The original [GSE73115 blood publication](https://pmc.ncbi.nlm.nih.gov/articles/PMC5557932/) identifies 43 twin pairs. Family-based holdout is required before interpreting person-held-out performance as independent-family generalization. GEO metadata does not disclose the mapping; numbering must not be used to invent pairs.

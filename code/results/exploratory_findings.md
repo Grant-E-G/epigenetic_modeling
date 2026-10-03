@@ -10,3 +10,7 @@ All real-data analyses in this run are exploratory; no prospectively frozen full
 5. External ESLs show lower paired absolute change after coarse sequence/context matching in both human datasets. The donor-averaged contrasts are -0.00573 (fibroblast controls) and -0.00161 (blood). This is stability-annotation transfer, not a demonstrated functional-importance effect. Matching and spatial-null sensitivity remain untested.
 
 No residual drift module, functional-essentiality effect, intervention fingerprint or identity-loss discovery has been established.
+
+## Continued validation
+
+See [validation_followup.md](validation_followup.md). External stability improves donor-held-out and donor/chromosome-held-out empirical predictions and survives full-matrix matching-bin sensitivity. Restricted M2 has small held-out predictive gains, but blood signed fits favor higher methylation gain plus faster return rather than suppressed gain; fibroblast restoration parameters hit bounds. The measured-proliferation pilot gives a small positive ESL-distance prediction signal in only 11 cultures/eight donors. Essentiality, identity, causal protection and selection remain unresolved; blood inference needs twin-family mapping.

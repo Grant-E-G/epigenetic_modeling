@@ -13,3 +13,4 @@ build/
 /code/target/
 /code/results/*_site_drift.csv
 /code/results/*_kinetic_subset.tsv
+/code/results/*_forecast_pairs.tsv
