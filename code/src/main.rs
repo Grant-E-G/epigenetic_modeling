@@ -1,3 +1,4 @@
+mod validation;
 use epidrift::*;
 use flate2::read::MultiGzDecoder;
 use std::{
@@ -2181,6 +2182,7 @@ fn main() -> Result<()> {
         "report" => reports(out)?,
         "fit" => fit_real_baseline(out)?,
         "forecast" => forecasting(out)?,
+        "validation" => validation::run(root,out,args.get(4).map(String::as_str).unwrap_or("all"))?,
         "kinetic-followup" => kinetic_followup(out)?,
         "growth-followup" => growth_followup(root,out)?,
         "followup-report" => followup_report(out)?,
@@ -2197,7 +2199,7 @@ fn main() -> Result<()> {
         }
         _ => {
             return Err(
-                "usage: epidrift [baseline|arrays|blood|fit|forecast|kinetic-followup|growth-followup|matching-followup|followup-report|simulate|report|reproduce] [raw-directory] [results-directory]"
+                "usage: epidrift [baseline|arrays|blood|fit|forecast|validation|kinetic-followup|growth-followup|matching-followup|followup-report|simulate|report|reproduce] [raw-directory] [results-directory]"
                     .into(),
             )
         }

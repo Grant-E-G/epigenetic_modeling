@@ -59,3 +59,7 @@ Run `make check` and `make reproduce` from the repository root. The latter recre
 ## Continued validation
 
 See [extended results](validation_followup.md) for larger donor/chromosome-held-out stability forecasts, restricted pooled M1/M2 tests, full-matrix matching sensitivity and a measured proliferation pilot. These supersede the earlier statement that all held-out F1/matching sensitivity work was absent, but do not complete the functional-constraint gate. The blood cohort consists of twin pairs: person bootstrap intervals above do not account for family dependence, and person-held-out predictions may train on the co-twin. Family mappings are missing from downloaded GEO metadata.
+
+## Six public-data tests
+
+[The six-test report](six_test_validation.md) adds independent future RNA, direct maintenance-count kinetics, clone-conditioned/representation analyses, existing DNMT1 perturbations, complete forecast distributions and multisite mechanism recovery. Several scientific gates fail: ECM promoter weighting does not improve RNA prediction, kinetic curves do not beat a pooled constant, and the current predictive intervals are too narrow. Clone structure and DNMT1 domain interactions matter. Numerical correctness and the earlier stable-locus signal remain supported; broad biological validity is not established.

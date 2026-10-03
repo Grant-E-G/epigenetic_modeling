@@ -1,0 +1,148 @@
+comparison,units,mean,bootstrap_lower,bootstrap_upper,unit_definition_and_limit
+RNA_ECM tolerance=32 penalty=0.001 ESL MSE gain,7,-0.0001078629887138772,-0.0004108345120183591,0.0001308810337311698,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.001 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.001 functional minus matched random MSE gain,7,0.0009525760505138406,-0.0004278417918401588,0.0031942978730207607,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.001 functional_ECM MSE gain,7,-0.00251228167044625,-0.005780550090283255,0.0003349564353955315,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.001 unweighted MSE gain,7,-0.004331404580981774,-0.010875591855502551,0.0001104856943964168,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.01 ESL MSE gain,7,-0.000007824410398165098,-0.000041433676802242005,0.000019870990608737442,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.01 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.01 functional minus matched random MSE gain,7,0.00014330244900805412,-0.0002473879114287558,0.0006638000447768924,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.01 functional_ECM MSE gain,7,-0.0009520385924688321,-0.0023100765966601313,0.00028170134384435656,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.01 unweighted MSE gain,7,-0.001742793108169292,-0.003987758402101373,0.00011762705689545432,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.1 ESL MSE gain,7,0.0000017807498803782795,-0.0000035127825410292626,0.0000068556152236565165,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.1 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.1 functional minus matched random MSE gain,7,-0.000056190255345991004,-0.00011966785830118889,0.0000029332092445759165,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.1 functional_ECM MSE gain,7,0.00003417210942905786,-0.0004054872228228743,0.0003967347376550229,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=32 penalty=0.1 unweighted MSE gain,7,-0.000014496216094970233,-0.000628644079197674,0.0004929964419813003,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.001 ESL MSE gain,4,-0.000006444426737415534,-0.00007794197124264408,0.00006052971301142639,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.001 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.001 functional minus matched random MSE gain,4,0.00011119775897064902,-0.00010574257834560163,0.00030651979602127916,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.001 functional_ECM MSE gain,4,-0.0008511313046795065,-0.0016672778210825132,-0.0000013601124147081308,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.001 unweighted MSE gain,4,-0.001106196962413119,-0.0015590608616234685,-0.00029492331330921407,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.01 ESL MSE gain,4,0.000001251386580555029,-0.0000049186178724638745,0.000006968315284087581,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.01 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.01 functional minus matched random MSE gain,4,0.000025365463758524325,-0.00004436695246474011,0.00009509787998178876,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.01 functional_ECM MSE gain,4,-0.00001765655393579284,-0.00017117737852831376,0.00013734906155279914,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.01 unweighted MSE gain,4,-0.00008516751607849594,-0.00042424251141198966,0.00010557599710866887,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.1 ESL MSE gain,4,0.00000041709427772917677,-0.00000008908090463975032,0.0000008443464266944672,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.1 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.1 functional minus matched random MSE gain,4,0.000004219004139499411,-0.000005207252656458514,0.000013433738956601552,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.1 functional_ECM MSE gain,4,0.000039101864357098696,0.0000007808077122780591,0.00006996158113990965,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM tolerance=8 penalty=0.1 unweighted MSE gain,4,0.00004941419701900693,-0.000020899181068211146,0.00011462575712600993,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.001 ESL MSE gain,7,0.000033212678325837,-0.00015312078164453203,0.00020609562599931312,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.001 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.001 functional minus matched random MSE gain,7,-0.0001813066941771663,-0.0006150561433944768,0.00033654726871642116,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.001 functional_ECM MSE gain,7,-0.0019189662051762473,-0.0043516594300818,0.00009677837318314971,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.001 unweighted MSE gain,7,-0.0020167532964676495,-0.004474825650431336,0.0002969818720452657,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.01 ESL MSE gain,7,0.000008346044343562177,-0.00001673942148928763,0.00003117322704879273,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.01 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.01 functional minus matched random MSE gain,7,-0.00023159746641030109,-0.0003720689571799169,-0.00009744814158355652,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.01 functional_ECM MSE gain,7,-0.0007253098773849834,-0.0021875620226983164,0.00033540588298874705,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.01 unweighted MSE gain,7,-0.0007661358868537243,-0.0023500920524828573,0.0004802191643735196,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.1 ESL MSE gain,7,0.0000024724928812171483,-0.000002240883234267673,0.000006426698084673137,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.1 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.1 functional minus matched random MSE gain,7,-0.00009152117045048502,-0.00015838810098228588,-0.00003005360090052148,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.1 functional_ECM MSE gain,7,-0.000010857428524276391,-0.0005785452270233553,0.0003649639739641258,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=32 penalty=0.1 unweighted MSE gain,7,0.000043539565339489995,-0.0008045092838465022,0.0006222494351359671,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.001 ESL MSE gain,4,-0.00007143210932591798,-0.00015117655767743878,-0.000022777251717859653,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.001 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.001 functional minus matched random MSE gain,4,0.00045367619094398753,-0.0003437301380477105,0.0014617252707988166,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.001 functional_ECM MSE gain,4,-0.0018557122821132013,-0.004121482025069347,-0.0004945732661307466,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.001 unweighted MSE gain,4,-0.0027216955100026435,-0.006915018154303634,-0.00023171012363150747,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.01 ESL MSE gain,4,-0.000007839016964521428,-0.00001740513243747013,-0.0000016662217731675324,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.01 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.01 functional minus matched random MSE gain,4,0.00007276513769023371,-0.00006365282880341633,0.0003080650688341917,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.01 functional_ECM MSE gain,4,-0.0005395134013416525,-0.0014955661667747527,-0.000002823496011294053,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.01 unweighted MSE gain,4,-0.0007955814573310058,-0.002495427503465124,0.00012944188161165103,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.1 ESL MSE gain,4,-0.0000008327040355150582,-0.0000015933302193886698,-0.0000000720778516414466,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.1 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.1 functional minus matched random MSE gain,4,-0.000002779382951788993,-0.00003432572375697522,0.00005083596463648359,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.1 functional_ECM MSE gain,4,-0.000052827904489746204,-0.00024937343208298224,0.00005531514351208631,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_ECM_absolute tolerance=8 penalty=0.1 unweighted MSE gain,4,-0.00006609566682409015,-0.0004572946741357515,0.0001539135360128573,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.001 ESL MSE gain,7,0.000011570101478352184,-0.000036063713992586175,0.00005046528909785945,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.001 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.001 functional minus matched random MSE gain,7,-0.00009403384897628155,-0.0001807925674432473,-0.000017801490460605636,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.001 functional_ECM MSE gain,7,-0.00030811930612080105,-0.0009896770704848645,0.0001334373756006575,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.001 unweighted MSE gain,7,-0.00025917518447872743,-0.0008614532548385571,0.0001432274313177351,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.01 ESL MSE gain,7,0.000002144368687337925,-0.000004323449479126391,0.00000720996019344927,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.01 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.01 functional minus matched random MSE gain,7,-0.00006806253490884216,-0.00010594000059183666,-0.000028406075966713262,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.01 functional_ECM MSE gain,7,-0.00011157220088653745,-0.0005182082542572581,0.00013584356123451106,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.01 unweighted MSE gain,7,-0.00008552021829964261,-0.0005183494954100496,0.00018699653697819328,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.1 ESL MSE gain,7,0.0000005439408386431453,-0.000000684993759199677,0.0000015331558525827027,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.1 baseline MSE gain,7,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.1 functional minus matched random MSE gain,7,-0.0000226478858712631,-0.00003735889848358684,-0.000009325841764787986,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.1 functional_ECM MSE gain,7,0.0000050673919281697525,-0.00014713091342583468,0.00010097246255809164,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=32 penalty=0.1 unweighted MSE gain,7,0.0000256341821631515,-0.0001967549585838223,0.0001733349357215004,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.001 ESL MSE gain,4,-0.000004275082975749668,-0.000007569178223264781,-0.0000009809877282345548,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.001 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.001 functional minus matched random MSE gain,4,0.0000763105108338844,0.00003887874412864808,0.00014246025497957913,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.001 functional_ECM MSE gain,4,-0.00011179107592928823,-0.00019098010652750545,-0.00003260204533107101,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.001 unweighted MSE gain,4,-0.00023878238218662224,-0.00042750893657870283,-0.0000904347833686612,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.01 ESL MSE gain,4,-0.00000038492186405915765,-0.0000007126056504958901,-0.000000057238077622425235,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.01 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.01 functional minus matched random MSE gain,4,0.000004827281617362095,-0.00001506121532844738,0.00003817416605180352,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.01 functional_ECM MSE gain,4,-0.00002795550832993384,-0.00009938003257195968,0.00001012746545659802,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.01 unweighted MSE gain,4,-0.00004411218704063421,-0.00019853394891464278,0.00004102678891853095,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.1 ESL MSE gain,4,-0.000000026381660855192788,-0.000000056785737677735905,-0.000000006604868374789818,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.1 baseline MSE gain,4,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.1 functional minus matched random MSE gain,4,-0.000003178323809575782,-0.000008613105197854776,0.000004891098641582016,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.1 functional_ECM MSE gain,4,0.000003920320642583641,-0.000015663997702809443,0.000015730625926203873,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+RNA_global tolerance=8 penalty=0.1 unweighted MSE gain,4,0.000013093175985427843,-0.000032572198999019336,0.00004252226814266844,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+clone quality=0.8 class=Dynamic equal-clone reweighting,2,0.009881067195545106,0.009862679933684768,0.009899454457405445,two recipients; published classes selected in same cohort
+clone quality=0.8 class=Dynamic log score gain,2,0.00831170049551369,0.007390357797158586,0.009233043193868794,two recipients; published classes selected in same cohort
+clone quality=0.8 class=Static equal-clone reweighting,2,0.02364751594936878,0.02252920437715457,0.024765827521582986,two recipients; published classes selected in same cohort
+clone quality=0.8 class=Static log score gain,2,0.068316623403302,0.06358577467187315,0.07304747213473084,two recipients; published classes selected in same cohort
+clone quality=0.95 class=Dynamic equal-clone reweighting,2,0.00941724845825452,0.00908776378280928,0.009746733133699764,two recipients; published classes selected in same cohort
+clone quality=0.95 class=Dynamic log score gain,2,0.006447396113346587,0.005177963711544037,0.007716828515149137,two recipients; published classes selected in same cohort
+clone quality=0.95 class=Static equal-clone reweighting,2,0.019947659172679176,0.019450551235194884,0.02044476711016347,two recipients; published classes selected in same cohort
+clone quality=0.95 class=Static log score gain,2,0.05682444077108143,0.051185140391314284,0.06246374115084858,two recipients; published classes selected in same cohort
+clone representation quality=0.8 class=Dynamic absolute composition component,293,0.0025320949596218155,0.002173578334892549,0.0029038198280532516,probes; two recipients; descriptive no biological confidence
+clone representation quality=0.8 class=Dynamic absolute within-clone component,293,0.021079623684979006,0.018985388207149918,0.023305671128549445,probes; two recipients; descriptive no biological confidence
+clone representation quality=0.8 class=Static absolute composition component,77,0.006317091437742476,0.005230979787334796,0.007545960698355097,probes; two recipients; descriptive no biological confidence
+clone representation quality=0.8 class=Static absolute within-clone component,77,0.026526991727379132,0.021258433500509242,0.032325320455052056,probes; two recipients; descriptive no biological confidence
+clone representation quality=0.95 class=Dynamic absolute composition component,293,0.0033222964561291524,0.002886619365610145,0.003809664736704668,probes; two recipients; descriptive no biological confidence
+clone representation quality=0.95 class=Dynamic absolute within-clone component,293,0.021246978080762268,0.019058393869706116,0.023634836676419867,probes; two recipients; descriptive no biological confidence
+clone representation quality=0.95 class=Static absolute composition component,77,0.009012288831700521,0.007446742625904481,0.010691398549200063,probes; two recipients; descriptive no biological confidence
+clone representation quality=0.95 class=Static absolute within-clone component,77,0.02418643241005484,0.019220941444095814,0.02933178119361301,probes; two recipients; descriptive no biological confidence
+identifiability endpoint_bulk fraction with multiple competitive candidates,24,0.9166666666666666,0.7916666666666666,1,synthetic replicates; known baseline hazard; not biological validation
+identifiability longitudinal_cells fraction with multiple competitive candidates,24,0.875,0.7083333333333334,1,synthetic replicates; known baseline hazard; not biological validation
+identifiability longitudinal_cells_and_survival fraction with multiple competitive candidates,24,0.8333333333333334,0.6666666666666666,0.9583333333333334,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=both endpoint_bulk strict highest-score candidate frequency,8,0.5,0.125,0.875,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=both longitudinal_cells strict highest-score candidate frequency,8,0.25,0,0.5,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=both longitudinal_cells_and_survival strict highest-score candidate frequency,8,1,1,1,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=protection endpoint_bulk strict highest-score candidate frequency,8,0.25,0,0.5,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=protection longitudinal_cells strict highest-score candidate frequency,8,0.25,0,0.625,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=protection longitudinal_cells_and_survival strict highest-score candidate frequency,8,0.375,0,0.75,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=selection endpoint_bulk strict highest-score candidate frequency,8,0.125,0,0.375,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=selection longitudinal_cells strict highest-score candidate frequency,8,0.5,0.125,0.875,synthetic replicates; known baseline hazard; not biological validation
+identifiability truth=selection longitudinal_cells_and_survival strict highest-score candidate frequency,8,0.875,0.625,1,synthetic replicates; known baseline hazard; not biological validation
+kinetics pulse_midpoint_CTMC_equivalent hour=16 log score gain vs pooled constant,1623,-0.031737438882319606,-0.05524944776287693,-0.007955566052845543,100kb genomic blocks; one stem-cell line; not biological-replicate confidence
+kinetics pulse_midpoint_CTMC_equivalent hour=4 log score gain vs pooled constant,1623,-0.07266083729653221,-0.09763842142286931,-0.047500510044255,100kb genomic blocks; one stem-cell line; not biological-replicate confidence
+kinetics pulse_uniform_CTMC_equivalent hour=16 log score gain vs pooled constant,1623,-0.028123172818442788,-0.05126078896370797,-0.004578779029978054,100kb genomic blocks; one stem-cell line; not biological-replicate confidence
+kinetics pulse_uniform_CTMC_equivalent hour=4 log score gain vs pooled constant,1623,-0.07164052519990054,-0.09659514412340817,-0.046279188409503846,100kb genomic blocks; one stem-cell line; not biological-replicate confidence
+perturbation W464A_W465A CTMC_effective_loss log score gain vs unchanged,3,0.5789888009366445,0.5046125494154398,0.616801475273421,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W464A_W465A affine_empirical log score gain vs unchanged,3,0.5789880671942799,0.5046103868149469,0.616801367627622,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W464A_W465A unchanged log score gain vs unchanged,3,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W464A_W465A_W796A CTMC_effective_loss log score gain vs unchanged,3,0.5938951306113622,0.5280729104909789,0.6466009261417625,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W464A_W465A_W796A affine_empirical log score gain vs unchanged,3,0.593897941846248,0.5280747917695225,0.6466004813497144,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W464A_W465A_W796A independent combination minus calibrated log score,3,-0.000005231671323731775,-0.00022211403824531906,0.0001706513277534849,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W464A_W465A_W796A unchanged log score gain vs unchanged,3,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W464A_W465A_W796A unseen_combination_independent_effects log score gain vs unchanged,3,0.5938898989400385,0.5278507964527337,0.646771577469516,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A CTMC_effective_loss log score gain vs unchanged,3,0.40490562241571565,0.2797028296705261,0.471508869517723,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A affine_empirical log score gain vs unchanged,3,0.40492007592172313,0.2797358995313294,0.4715263847127254,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A unchanged log score gain vs unchanged,3,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A_W796A CTMC_effective_loss log score gain vs unchanged,3,0.12184031087368256,0.0794242001322723,0.14761797731676166,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A_W796A affine_empirical log score gain vs unchanged,3,0.12192208224892102,0.07950755579868403,0.14769586019571443,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A_W796A independent combination minus calibrated log score,3,-0.091341897773201,-0.12993217612837665,-0.06904605914509526,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A_W796A unchanged log score gain vs unchanged,3,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W465A_W796A unseen_combination_independent_effects log score gain vs unchanged,3,0.03049841310048156,-0.05050797599610437,0.07857191817166642,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W796A CTMC_effective_loss log score gain vs unchanged,3,0.004576875044896762,-0.01259753756327415,0.03131106101192683,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W796A affine_empirical log score gain vs unchanged,3,0.004611823824550041,-0.01238538865980198,0.03118964354303232,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+perturbation W796A unchanged log score gain vs unchanged,3,0,0,0,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+trajectory early_constant RMSE,9,0.11138054849319008,0.0979051615325407,0.12750671901346944,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+trajectory early_constant fraction outside nominal 95 percent,9,0.1223056506064793,0.08945094633833203,0.157485794480931,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+trajectory independent_CTMC RMSE,9,0.06552988678487827,0.05175406413176859,0.08430890590474618,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+trajectory independent_CTMC fraction outside nominal 95 percent,9,0.21168367343627226,0.15685539261160886,0.29164173226063694,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+trajectory linear_empirical RMSE,9,0.08414868393455334,0.0631167841210061,0.10928118732549964,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty
+trajectory linear_empirical fraction outside nominal 95 percent,9,0.28742278543055555,0.2205060519965601,0.3656194008186941,donors or culture replicates; fixed-fold bootstrap omits refitting uncertainty

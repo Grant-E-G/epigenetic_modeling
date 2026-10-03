@@ -1,6 +1,6 @@
 # Rust stochastic methylation model
 
-A single Rust crate keeps related numerical/model code in `src/lib.rs` and data analysis/reporting in `src/main.rs`. Rust 1.88+, `curl`, `unzip`, `pdftotext`, GNU `sha256sum`; no Python runtime. `Cargo.lock` pins the small dependency set. Analyses use seed 20261003; public API simulation seeds are explicit.
+A single Rust crate keeps related numerical/model code in `src/lib.rs` and data analysis/reporting in `src/main.rs`. Rust 1.88+, `curl`, `unzip`, `pdftotext`, GNU `sha256sum`; the core model needs no Python runtime. Public-data validation uses a pinned Python format decoder for MATLAB/R files. `Cargo.lock` pins the small dependency set. Analyses use seed 20261003; public API simulation seeds are explicit.
 
 From the repository root:
 
@@ -44,4 +44,22 @@ See [results/results.md](results/results.md), [empirical report](results/empiric
 
 [Extended results](results/validation_followup.md) add empirical donor/chromosome-held-out stability forecasts, restricted exact-CTMC M1/M2 comparisons, full-matrix coarse/fine/density matching sensitivity and an independent measured proliferation endpoint. `make followup` regenerates all outputs after annotations are built; it streams both full matrices four times and retains ignored intermediate runs under `data/derived/matching_runs`. Paired forecast subsets use every 256th probe and are ignored. The held-out empirical log-change ridge model is distinct from mechanistic M2. Blood participants include twin pairs with unavailable family IDs, so person-level cross-validation and bootstrap are provisional. Growth tests have only 11 culture endpoints/eight donors and do not establish identity loss.
 
-The paired fibroblast RNA metadata and processed expression matrix are downloaded as GSE179848. GSE225172 belongs to the mouse study; neither RNA matrix has yet been analyzed. The new regression test checks coefficient recovery and removal of held-out sufficient statistics; 20 tests pass with strict Clippy.
+The paired fibroblast RNA metadata and processed expression matrix are downloaded as GSE179848. GSE225172 belongs to the mouse study; The fibroblast RNA matrix is now analyzed by the six-test extension; mouse RNA remains unanalyzed. The new regression test checks coefficient recovery and removal of held-out sufficient statistics; 22 tests pass with strict Clippy.
+
+## Six public-data validation tests
+
+[The six-test report](results/six_test_validation.md) is the current biological assessment. One additional Rust module, `src/validation.rs`, keeps the six related data workflows together. It tests future RNA with frozen Reactome ECM promoter weights and 20 external-context-matched masks; observed post-replication counts; independent LARRY clone labels/proteins and representation decomposition; existing DNMT1 perturbations including unseen genotype combinations; full future-array distributions/residual dependence; and exact multisite protection/selection recovery with missingness and survival alternatives.
+
+For a fresh environment, install `uv`, then create the ignored conversion environment with Python 3.10+:
+
+```sh
+uv --cache-dir data/tools/uv-cache venv --python /usr/bin/python3 data/tools/format-env
+uv --cache-dir data/tools/uv-cache pip install --python data/tools/format-env/bin/python -r code/public-data-format-requirements.txt
+make download
+make reproduce  # builds the frozen human annotation table
+make validation
+```
+
+`code/convert_public_data.py` only decodes the observed MATLAB counts and R sparse assays/metadata. Rust performs all matching, calculations, fitting, simulation and reporting. The helper is Black formatted and mypy checked. `make validation` verifies 29 source-file hashes, converts archives directly (no manual MATLAB extraction required), rebuilds ignored functional/trajectory summaries, and runs the complete six-test extension offline. The Rust CLI accepts `validation [raw] [results] [prepare|rna|kinetics|clones|perturbations|distributions|identifiability|report|all]`. New sources add roughly 550 MB compressed; derived caches and the pinned format environment remain ignored. Reactome's upstream `current` URL can change: checksum verification must reject a changed release rather than silently update the tested functional mask. API inventory JSONs are provenance aids, not model inputs or checksum-stable representations.
+
+The RNA test uses only controls, four donors under strict initial-time matching and seven under relaxed matching. Site weights are a curated ECM program proxy; no essentiality or identity-loss threshold is inferred. Mouse/human coordinates are never joined. Clone tests use public mouse objects; human raw reads require controlled access. Future predictive intervals fail calibration despite improved CTMC means. The tested kinetic curves fail to outperform a pooled constant, and an independent-effects perturbation rule fails one genotype combination. Do not summarize these outcomes as full biological validation.

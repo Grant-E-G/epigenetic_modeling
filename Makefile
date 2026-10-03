@@ -1,4 +1,4 @@
-.PHONY: download verify-data reproduce followup check
+.PHONY: download verify-data reproduce followup validation check
 
 download:
 	bash code/download.sh
@@ -22,3 +22,8 @@ followup: verify-data
 	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- growth-followup
 	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- matching-followup
 	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- followup-report
+
+# Conversion tools live under ignored data/tools; install per code/README.md.
+validation: verify-data
+	data/tools/format-env/bin/python code/convert_public_data.py
+	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- validation data/raw code/results all

@@ -3,4 +3,7 @@ GSE225171,1131,11,mouse blood,10/36/77/100 weeks,published processed single-cell
 GSE179847,479,9,human primary fibroblast,days grown and passage metadata,EPIC array beta and detection p-values,full-matrix M0 plus stability forecasts and restricted M1/M2 plus proliferation pilot
 GSE73115,180,86,human whole blood,1997/2007,450K array beta and detection p-values,full-matrix M0 plus stability forecasts and restricted M1/M2; 43 twin pairs lack family mapping
 GSE225172,not_counted,not_reconciled,mouse blood,paired cross-sectional RNA,count matrix,downloaded but not analyzed
-GSE179848,345,9,human primary fibroblast,days grown and passage metadata,processed RNA expression and metadata,downloaded for paired functional follow-up; not analyzed
+GSE179848,345,9,human primary fibroblast,days grown and passage metadata,processed RNA expression and metadata,future RNA validation; 33 strict pairs from four donors and 63 exploratory pairs from seven donors
+RepliBS_chr1_chr22,4,1,human embryonic stem cells,0/1/4/16 hours post-pulse,observed methylated and unmethylated read counts,2959 covered fixed-sampled CpGs; time-heldout kinetics comparison
+EPIClone_M123,28782,2,mouse hematopoietic recipients,single harvest across recipients,methylation-sensitive amplification and independent LARRY labels and proteins,1903 or 3285 quality-filtered cells; 370 probes; clone conditioning and representation
+GSE145698,18,3,mouse embryonic stem cells,WT and five DNMT1 mutant-rescue genotypes,observed methylated and total eRRBS counts,165106 sampled WT-covered CpGs; chromosome and genotype-combination holdout
