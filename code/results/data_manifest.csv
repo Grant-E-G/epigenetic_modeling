@@ -1,0 +1,5 @@
+accession,samples,biological_replicates,cell_type,ages_or_time,data_type,analysis_status
+GSE225171,1131,11,mouse blood,10/36/77/100 weeks,published processed single-cell Polycomb beta,approximate mouse-held-out baseline
+GSE179847,479,9,human primary fibroblast,days grown and passage metadata,EPIC array beta and detection p-values,full-matrix M0 and 14-site M1 subset
+GSE73115,180,86,human whole blood,1997/2007,450K array beta and detection p-values,full-matrix M0 and 8-site M1 subset
+GSE225172,not_counted,not_reconciled,mouse blood,paired cross-sectional RNA,count matrix,downloaded but not analyzed

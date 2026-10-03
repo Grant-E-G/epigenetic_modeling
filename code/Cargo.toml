@@ -1,0 +1,15 @@
+[package]
+name = "epidrift"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+
+[dependencies]
+flate2 = "=1.1.10"
+rand = "=0.8.6"
+
+[profile.release]
+lto = "thin"
+
+[lints.clippy]
+all = "warn"

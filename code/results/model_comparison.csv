@@ -1,0 +1,45 @@
+dataset,group,held_out_replicate,model,n,log_predictive_density,parameters,status
+GSE225171,slow,mouse1,one_state,78,238.92478705846776,"[0.009489105224609376, 0.0010046997070312497]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse1,two_state,78,262.8286399744793,"[0.005460601806640624, 0.05496307373046876, 0.0014093017578124998, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse11,one_state,80,294.1888768653281,"[0.009556396484375, 0.0018621826171874997]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse11,two_state,80,295.8368557915581,"[0.005428466796875, 0.061568603515625, 0.0011484375000000006, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse12,one_state,69,261.36090282854127,"[0.010144073486328125, 2.981555974335137e-19]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse12,two_state,69,261.36090282854127,"[0.00621453857421875, 0.065657958984375, 0.0009771728515624994, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse14,one_state,75,265.8567248089266,"[0.011821868896484376, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse14,two_state,75,272.2249003885647,"[0.00661993408203125, 0.06881652832031251, 0.0008193359374999995, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse15,one_state,71,246.50162237828638,"[0.010661437988281246, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse15,two_state,71,246.55592346722096,"[0.0061766357421875, 0.06694641113281247, 0.0009338378906250008, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse2,one_state,53,163.43194910426783,"[0.009587799072265627, 0.0009849243164062502]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse2,two_state,53,168.23350182771608,"[0.005458953857421876, 0.0625958251953125, 0.0012393798828125003, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse21,one_state,71,245.65435043809546,"[0.010911193847656252, 0.0007377319335937497]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse21,two_state,71,254.39650002211988,"[0.006081878662109376, 0.06375488281250001, 0.00112548828125, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse22,one_state,66,213.72056357000577,"[0.009695465087890626, 0.0010623779296875004]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse22,two_state,66,209.7224183271661,"[0.00507086181640625, 0.06403503417968755, 0.0011624755859374997, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse23,one_state,124,279.6513183495295,"[0.008234466552734375, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse23,two_state,124,347.03963907379904,"[0.0051417236328125, 0.05, 0.0012066650390625, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse24,one_state,75,284.44044549950524,"[0.008739929199218751, 0.0021302490234374988]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse24,two_state,75,284.7401407859671,"[0.005, 0.06042297363281248, 0.0011243896484374994, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse3,one_state,74,227.79212695424448,"[0.009580291748046872, 0.0009651489257812495]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,slow,mouse3,two_state,74,228.98144132299075,"[0.005529815673828125, 0.07450744628906256, 0.0008500976562499995, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse1,one_state,11,29.63950154529092,"[0.031834289550781256, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse1,two_state,11,29.27478715772327,"[0.01890234374999999, 0.16933593750000017, 0.00010156249999999958, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse11,one_state,9,25.923625006574138,"[0.03088031005859375, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse11,two_state,9,25.4075766391895,"[0.005205535888671873, 0.05, 0.0024713134765625, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse12,one_state,16,43.44918184478416,"[0.033960693359375, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse12,two_state,16,43.510350095879105,"[0.009490081787109372, 0.05, 0.0026060791015624996, 0.0012305908203125002]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse14,one_state,10,29.945596280787537,"[0.03123764038085937, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse14,two_state,10,29.96967667649353,"[0.030398437499999997, 0.16230468750000043, 7.812499999999957e-5, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse15,one_state,18,47.49849302926162,"[0.011087707519531254, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse15,two_state,18,47.43502458103527,"[0.006641387939453128, 0.05, 0.0021958007812500012, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse2,one_state,31,32.53708290531413,"[0.01365823364257813, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse2,two_state,31,31.856406249174295,"[0.012409423828125002, 0.16604003906250053, 7.812499999999957e-5, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse21,one_state,17,46.5334260622718,"[0.03075314331054687, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse21,two_state,17,46.50267538421504,"[0.029976562499999998, 0.1658203125000004, 7.812499999999957e-5, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse22,one_state,22,60.30676711959308,"[0.03140069580078126, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse22,two_state,22,59.75143199304186,"[0.007329742431640623, 0.05, 0.002234375, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse23,one_state,56,135.36774265197457,"[0.01182635498046875, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse23,two_state,56,142.26381380704098,"[0.0098485107421875, 0.05, 0.0009511718749999997, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse24,one_state,13,38.16257826113369,"[0.027209136962890627, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse24,two_state,13,38.16257826113369,"[0.005, 0.05, 0.0013345947265624995, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse3,one_state,14,37.138118833341714,"[0.028386047363281253, 0.0]",continuous_switch_gaussian_random_intercept_approximation
+GSE225171,fast,mouse3,two_state,14,37.28234835685254,"[0.02732666015625, 0.1780810546875006, 7.812499999999957e-5, 0.0]",continuous_switch_gaussian_random_intercept_approximation

@@ -1,6 +1,8 @@
-# Theory Project Template
+# Constrained Stochastic Epigenetic Drift
 
-Template repository for pure math and theory-heavy research projects.
+Research on methylation maintenance, functional constraint, selection and identity loss.
+
+The model specification is in [notes/epigenetic_drift_model_spec_v2.md](notes/epigenetic_drift_model_spec_v2.md). The compact Rust implementation and reproducibility commands are in [code/README.md](code/README.md), current results in [code/results/results.md](code/results/results.md), and the annotated literature review in [notes/reading_list.md](notes/reading_list.md). The initial computational run does not yet establish functional constraint or biological identity loss.
 
 ## Repository Layout
 

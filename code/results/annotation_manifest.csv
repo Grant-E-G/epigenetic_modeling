@@ -1,0 +1,8 @@
+annotation,source,version,leakage_status,run_status
+cell_type,https://github.com/shmuel-ruppo/cellular-aging,805eb382cc65f91b9953661550af325c48582ecd,RNA-derived cell typing used for stratification,used
+polycomb_summary,https://github.com/shmuel-ruppo/cellular-aging,805eb382cc65f91b9953661550af325c48582ecd,published feature set rather than fitted q,used_processed_summary
+q_esl,https://www.nature.com/articles/s41467-026-69430-z,2026 publication,young-blood stability selection requires independent cohort evaluation,imported_31744_loci
+q_sequence,https://www.biorxiv.org/content/10.64898/2026.04.09.717557v1,v1 2026-04-11,external sequence-ranking preprint symmetrized across reverse complements,imported_225_motifs
+array_genomic_context,GEO GPL13534 and GPL21145,downloaded 2026-10-03 hg19,external probe context and sequence,imported_without_ccRE_or_essentiality
+q_essentiality,https://depmap.org/portal/,unfrozen,tissue relevance not guaranteed,not_imported
+q_identity,independent young lineage regulatory reference,unfrozen,must exclude held-out methylation and functional outcomes,not_available

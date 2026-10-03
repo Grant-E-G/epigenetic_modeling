@@ -7,3 +7,9 @@ __pycache__/
 node_modules/
 dist/
 build/
+
+# Downloaded research data and Rust build products
+/data/
+/code/target/
+/code/results/*_site_drift.csv
+/code/results/*_kinetic_subset.tsv
