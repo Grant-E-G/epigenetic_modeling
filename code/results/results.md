@@ -63,3 +63,8 @@ See [extended results](validation_followup.md) for larger donor/chromosome-held-
 ## Six public-data tests
 
 [The six-test report](six_test_validation.md) adds independent future RNA, direct maintenance-count kinetics, clone-conditioned/representation analyses, existing DNMT1 perturbations, complete forecast distributions and multisite mechanism recovery. Several scientific gates fail: ECM promoter weighting does not improve RNA prediction, kinetic curves do not beat a pooled constant, and the current predictive intervals are too narrow. Clone structure and DNMT1 domain interactions matter. Numerical correctness and the earlier stable-locus signal remain supported; broad biological validity is not established.
+
+
+## Functional recovery pilot and experiment direction
+
+The subsequent HCT116 recovery pilot uses independently defined gene-fitness labels. Its corrected unfiltered association is positive, but baseline expression detection QC leaves seven matched pairs and tighter expression matching leaves two with inconsistent recovery contrasts. It does not establish preferential functional restoration or expression recovery. [The experiment brief](../../notes/experiment_brief.md) records the full assessment, four candidate anchors, a local-function editing gate, and revised mechanism accounting. `make recovery` reproduces the new Rust analysis without changing the earlier six-test results.

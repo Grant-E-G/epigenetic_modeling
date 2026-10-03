@@ -316,6 +316,7 @@ pub fn run(root: &str, out: &str, command: &str) -> Result<()> {
         "perturbations"=>perturbations(root,out)?,
         "distributions"=>trajectory_distributions(out)?,
         "identifiability"=>identifiability(out)?,
+        "recovery"=>{recovery_pilot(root,out,false)?;recovery_pilot(root,out,true)?;},
         "report"=>extended_report(out)?,
         "all"=>{
             prepare_functional(root,out)?;
@@ -327,7 +328,7 @@ pub fn run(root: &str, out: &str, command: &str) -> Result<()> {
             identifiability(out)?;
             extended_report(out)?;
         }
-        _=>return Err("validation subcommand: prepare|rna|kinetics|clones|perturbations|distributions|identifiability|report|all".into()),
+        _=>return Err("validation subcommand: prepare|rna|kinetics|clones|perturbations|distributions|identifiability|recovery|report|all".into()),
     }
     Ok(())
 }
@@ -1866,9 +1867,591 @@ fn extended_report(out: &str) -> Result<()> {
     Ok(())
 }
 
+fn recovery_detected_probes(path: &str) -> Result<BTreeSet<String>> {
+    let mut is_baseline = false;
+    let mut table = false;
+    let mut header = true;
+    let mut samples: Vec<BTreeSet<String>> = vec![];
+    for line in reader(path)?.lines() {
+        let line = line?;
+        if line.starts_with("^SAMPLE") {
+            is_baseline = false;
+            table = false;
+        }
+        if let Some(title) = line.strip_prefix("!Sample_title = ") {
+            is_baseline =
+                title.contains("Ctrl") && !title.contains("1KO") && !title.contains("3BKO");
+        }
+        if line == "!sample_table_begin" {
+            table = is_baseline;
+            header = true;
+            if table {
+                samples.push(BTreeSet::new());
+            }
+            continue;
+        }
+        if line == "!sample_table_end" {
+            table = false;
+            continue;
+        }
+        if !table {
+            continue;
+        }
+        let a = fields(&line, '\t');
+        if header {
+            if a.len() != 3 || a[2] != "Detection Pval" {
+                return Err("unexpected expression detection format".into());
+            }
+            header = false;
+            continue;
+        }
+        if a.len() != 3 {
+            return Err("bad baseline detection row".into());
+        }
+        if numeric(&a[2]).is_some_and(|p| (0.0..=0.01).contains(&p)) {
+            samples.last_mut().unwrap().insert(a[0].clone());
+        }
+    }
+    if samples.len() != 2 {
+        return Err("expected two WT baseline detection tables".into());
+    }
+    Ok(samples[0].intersection(&samples[1]).cloned().collect())
+}
+
+// A narrow functional-constraint pilot; matching never reads recovery outcomes.
+struct RecoverySite {
+    id: String,
+    gene: String,
+    essential: bool,
+    feature: Feature,
+    beta: Vec<f64>,
+    expression: Vec<f64>,
+}
+type RecoveryMatrix = (Vec<String>, BTreeMap<String, Vec<f64>>);
+fn recovery_matrix(path: &str) -> Result<RecoveryMatrix> {
+    let mut titles = vec![];
+    let mut table = false;
+    let mut rows = BTreeMap::new();
+    for line in reader(path)?.lines() {
+        let line = line?;
+        if line.starts_with("!Sample_title\t") {
+            titles = fields(&line, '\t').into_iter().skip(1).collect();
+        } else if line == "!series_matrix_table_begin" {
+            table = true;
+        } else if line == "!series_matrix_table_end" {
+            break;
+        } else if table && !line.starts_with("\"ID_REF\"") {
+            let a = fields(&line, '\t');
+            if a.len() != titles.len() + 1 {
+                return Err("recovery matrix/sample count mismatch".into());
+            }
+            rows.insert(
+                a[0].clone(),
+                a[1..]
+                    .iter()
+                    .map(|x| numeric(x).unwrap_or(f64::NAN))
+                    .collect(),
+            );
+        }
+    }
+    if rows.is_empty() {
+        return Err("empty recovery matrix".into());
+    }
+    Ok((titles, rows))
+}
+fn recovery_annotation(
+    path: &str,
+    gene_column: &str,
+    body_only: bool,
+) -> Result<BTreeMap<String, String>> {
+    let mut table = false;
+    let mut header = vec![];
+    let mut map = BTreeMap::new();
+    for line in reader(path)?.lines() {
+        let line = line?;
+        if line == "!platform_table_begin" {
+            table = true;
+            continue;
+        }
+        if line == "!platform_table_end" {
+            break;
+        }
+        if !table {
+            continue;
+        }
+        let a = fields(&line, '\t');
+        if header.is_empty() {
+            header = a;
+            continue;
+        }
+        let names = header
+            .iter()
+            .position(|x| x == gene_column)
+            .ok_or("missing recovery gene column")?;
+        let genes: BTreeSet<_> = a[names].split(';').filter(|g| !g.is_empty()).collect();
+        if genes.len() != 1 {
+            continue;
+        }
+        if body_only {
+            let groups = header
+                .iter()
+                .position(|x| x == "UCSC_RefGene_Group")
+                .ok_or("missing BODY annotation")?;
+            if !a[groups].split(';').all(|g| g == "Body") {
+                continue;
+            }
+        }
+        map.insert(a[0].clone(), genes.into_iter().next().unwrap().to_string());
+    }
+    if map.is_empty() {
+        return Err("no recovery annotations".into());
+    }
+    Ok(map)
+}
+fn recovery_indices(titles: &[String], genotype: &str, days: &[u32]) -> Result<Vec<Vec<usize>>> {
+    days.iter()
+        .map(|day| {
+            let found: Vec<_> = titles
+                .iter()
+                .enumerate()
+                .filter(|(_, title)| {
+                    let is_genotype = match genotype {
+                        "WT" => !title.contains("1KO") && !title.contains("3BKO"),
+                        other => title.contains(other),
+                    };
+                    let sample_day = if title.contains("Ctrl") {
+                        Some(0)
+                    } else {
+                        title.split_whitespace().find_map(|part| {
+                            part.strip_prefix('D')
+                                .and_then(|d| d.split('_').next()?.parse::<u32>().ok())
+                        })
+                    };
+                    is_genotype && sample_day == Some(*day)
+                })
+                .map(|(i, _)| i)
+                .collect();
+            if found.is_empty() {
+                Err(format!("missing {genotype} day {day}").into())
+            } else {
+                Ok(found)
+            }
+        })
+        .collect()
+}
+fn recovery_fraction(beta: &[f64], index: usize) -> f64 {
+    (beta[index] - beta[1]) / (beta[0] - beta[1])
+}
+fn recovery_match(a: &RecoverySite, b: &RecoverySite, scales: [f64; 5]) -> Option<f64> {
+    if a.feature.chrom != b.feature.chrom || a.feature.island != b.feature.island {
+        return None;
+    }
+    let differences = [
+        (a.beta[0] - b.beta[0]).abs() / 0.1,
+        ((a.beta[0] - a.beta[1]) - (b.beta[0] - b.beta[1])).abs() / 0.1,
+        (a.expression[0] - b.expression[0]).abs() / 2.0,
+        (a.feature.sequence? - b.feature.sequence?).abs() / 0.25,
+        (a.feature.density - b.feature.density).abs() / 0.02,
+    ];
+    differences
+        .iter()
+        .zip(scales)
+        .all(|(d, scale)| *d <= scale)
+        .then(|| differences.iter().map(|d| d * d).sum())
+}
+fn recovery_pilot(root: &str, out: &str, detected_only: bool) -> Result<()> {
+    let prefix = if detected_only {
+        "recovery_detected"
+    } else {
+        "recovery"
+    };
+    let reference = |name: &str| -> Result<BTreeSet<String>> {
+        reader(&format!("{root}/{name}"))?
+            .lines()
+            .skip(1)
+            .map(|l| Ok(l?.split('\t').next().unwrap_or("").to_string()))
+            .collect()
+    };
+    let essential = reference("BAGEL_CEGv2.txt")?;
+    let nonessential = reference("BAGEL_NEGv1.txt")?;
+    if !essential.is_disjoint(&nonessential) {
+        return Err("functional reference overlap".into());
+    }
+    let features = load_features()?;
+    let genes = recovery_annotation(
+        &format!("{root}/GSE73115_family.soft.gz"),
+        "UCSC_RefGene_Name",
+        true,
+    )?;
+    let rna_genes =
+        recovery_annotation(&format!("{root}/GSE51811_family.soft.gz"), "Symbol", false)?;
+    let (rna_titles, rna) = recovery_matrix(&format!("{root}/GSE51811_series_matrix.txt.gz"))?;
+    let rna_indices = recovery_indices(&rna_titles, "WT", &[0, 5, 14, 24, 42])?;
+    let detected = recovery_detected_probes(&format!("{root}/GSE51811_family.soft.gz"))?;
+    let mut expression: BTreeMap<String, Vec<Vec<f64>>> = BTreeMap::new();
+    for (id, values) in &rna {
+        if detected_only && !detected.contains(id) {
+            continue;
+        }
+        let Some(gene) = rna_genes.get(id) else {
+            continue;
+        };
+        if !essential.contains(gene) && !nonessential.contains(gene) {
+            continue;
+        }
+        if rna_indices[0]
+            .iter()
+            .any(|i| !values[*i].is_finite() || values[*i] < 0.0)
+        {
+            continue;
+        }
+        let x: Vec<_> = rna_indices
+            .iter()
+            .map(|indices| {
+                mean(
+                    &indices
+                        .iter()
+                        .map(|i| (values[*i] + 1.0).log2())
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect();
+        expression.entry(gene.clone()).or_default().push(x);
+    }
+    let expression: BTreeMap<_, Vec<_>> = expression
+        .into_iter()
+        .map(|(gene, rows)| {
+            let average = (0..5)
+                .map(|i| mean(&rows.iter().map(|r| r[i]).collect::<Vec<_>>()))
+                .collect();
+            (gene, average)
+        })
+        .collect();
+    let (titles, matrix) = recovery_matrix(&format!("{root}/GSE51810_series_matrix.txt.gz"))?;
+    let days = [0, 5, 14, 24, 42, 54, 68];
+    let indices = recovery_indices(&titles, "WT", &days)?;
+    if indices.iter().any(|i| i.len() != 1) {
+        return Err("expected one methylation array per WT time".into());
+    }
+    let mutant_indices = recovery_indices(&titles, "3BKO", &days)?;
+    let mut sites = vec![];
+    for (id, values) in &matrix {
+        let (Some(gene), Some(feature)) = (genes.get(id), features.get(id)) else {
+            continue;
+        };
+        let Some(exp) = expression.get(gene) else {
+            continue;
+        };
+        if feature.sequence.is_none() || feature.island == "Unknown" || feature.island.is_empty() {
+            continue;
+        }
+        let beta: Vec<_> = indices.iter().map(|i| values[i[0]]).collect();
+        // Eligibility uses only baseline and day 5; later finite values are checked after matching.
+        if !beta[0].is_finite() || !beta[1].is_finite() || beta[0] < 0.7 || beta[0] - beta[1] < 0.15
+        {
+            continue;
+        }
+        sites.push(RecoverySite {
+            id: id.clone(),
+            gene: gene.clone(),
+            essential: essential.contains(gene),
+            feature: feature.clone(),
+            beta,
+            expression: exp.clone(),
+        });
+    }
+    let mut q_genes: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for (i, site) in sites.iter().enumerate().filter(|(_, s)| s.essential) {
+        q_genes.entry(site.gene.clone()).or_default().push(i);
+    }
+    let controls: Vec<_> = sites
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| !s.essential)
+        .map(|(i, _)| i)
+        .collect();
+    let mut used_controls = BTreeSet::new();
+    let mut pairs = vec![];
+    for q_sites in q_genes.values() {
+        let best = q_sites
+            .iter()
+            .flat_map(|i| {
+                controls
+                    .iter()
+                    .filter(|j| !used_controls.contains(&sites[**j].gene))
+                    .filter_map(|j| {
+                        recovery_match(&sites[*i], &sites[*j], [1.0; 5]).map(|d| (*i, *j, d))
+                    })
+            })
+            .min_by(|a, b| a.2.total_cmp(&b.2).then(a.0.cmp(&b.0)).then(a.1.cmp(&b.1)));
+        if let Some((i, j, d)) = best {
+            used_controls.insert(sites[j].gene.clone());
+            pairs.push((i, j, d));
+        }
+    }
+    // Added after observing the primary result: exploratory confounding/support audits.
+    let mut sensitivity = writer(&format!("{out}/{prefix}_matching_sensitivity.csv"))?;
+    writeln!(sensitivity,"setting,pairs,mean_day42_contrast,mean_log2_expression_imbalance,mean_baseline_beta_imbalance,mean_induced_loss_imbalance")?;
+    let mut audit_manifest = writer(&format!("{out}/{prefix}_sensitivity_loci.csv"))?;
+    writeln!(
+        audit_manifest,
+        "setting,essential_gene,essential_cpg,control_gene,control_cpg,match_distance"
+    )?;
+    for (setting, scales, reverse, expression_floor) in [
+        ("primary", [1.0; 5], false, 0.0),
+        ("reverse_gene_order", [1.0; 5], true, 0.0),
+        (
+            "expression_half_log2",
+            [1.0, 1.0, 0.25, 1.0, 1.0],
+            false,
+            0.0,
+        ),
+        ("all_calipers_halved", [0.5; 5], false, 0.0),
+        ("both_baseline_expression_at_least_8", [1.0; 5], false, 8.0),
+    ] {
+        let mut used = BTreeSet::new();
+        let mut audit_pairs = vec![];
+        let ordered: Vec<_> = if reverse {
+            q_genes.values().rev().collect()
+        } else {
+            q_genes.values().collect()
+        };
+        for q_sites in ordered {
+            let best = q_sites
+                .iter()
+                .filter(|i| sites[**i].expression[0] >= expression_floor)
+                .flat_map(|i| {
+                    controls
+                        .iter()
+                        .filter(|j| {
+                            !used.contains(&sites[**j].gene)
+                                && sites[**j].expression[0] >= expression_floor
+                        })
+                        .filter_map(|j| {
+                            recovery_match(&sites[*i], &sites[*j], scales).map(|d| (*i, *j, d))
+                        })
+                })
+                .min_by(|a, b| a.2.total_cmp(&b.2).then(a.0.cmp(&b.0)).then(a.1.cmp(&b.1)));
+            if let Some((i, j, d)) = best {
+                used.insert(sites[j].gene.clone());
+                audit_pairs.push((i, j, d));
+            }
+        }
+        for (i, j, d) in &audit_pairs {
+            writeln!(
+                audit_manifest,
+                "{setting},{},{},{},{},{d}",
+                sites[*i].gene, sites[*i].id, sites[*j].gene, sites[*j].id
+            )?;
+        }
+        let diffs: Vec<_> = audit_pairs
+            .iter()
+            .map(|(i, j, _)| {
+                recovery_fraction(&sites[*i].beta, 4) - recovery_fraction(&sites[*j].beta, 4)
+            })
+            .filter(|v| v.is_finite())
+            .collect();
+        let exp: Vec<_> = audit_pairs
+            .iter()
+            .map(|(i, j, _)| sites[*i].expression[0] - sites[*j].expression[0])
+            .collect();
+        let baseline: Vec<_> = audit_pairs
+            .iter()
+            .map(|(i, j, _)| sites[*i].beta[0] - sites[*j].beta[0])
+            .collect();
+        let loss: Vec<_> = audit_pairs
+            .iter()
+            .map(|(i, j, _)| {
+                (sites[*i].beta[0] - sites[*i].beta[1]) - (sites[*j].beta[0] - sites[*j].beta[1])
+            })
+            .collect();
+        writeln!(
+            sensitivity,
+            "{setting},{},{},{},{},{}",
+            diffs.len(),
+            mean(&diffs),
+            mean(&exp),
+            mean(&baseline),
+            mean(&loss)
+        )?;
+    }
+    let mut manifest = writer(&format!("{out}/{prefix}_matched_loci.csv"))?;
+    writeln!(manifest,"pair,class,gene,cpg,chrom,cgi,baseline_beta,day5_beta,baseline_log2_expression,sequence_rank,density,match_distance,eligible_for_primary")?;
+    let mut observations = writer(&format!("{out}/{prefix}_pair_outcomes.csv"))?;
+    writeln!(
+        observations,
+        "pair,essential_gene,control_gene,day,essential_recovery,control_recovery,contrast"
+    )?;
+    let mut summary = writer(&format!("{out}/{prefix}_pilot_summary.csv"))?;
+    writeln!(summary,"endpoint,units,essential_mean,control_mean,contrast,heterogeneity_bootstrap_low,heterogeneity_bootstrap_high")?;
+    for (pair, (i, j, d)) in pairs.iter().enumerate() {
+        for site in [&sites[*i], &sites[*j]] {
+            writeln!(
+                manifest,
+                "{pair},{},{},{},{},{},{},{},{},{},{},{},{}",
+                if site.essential {
+                    "essential"
+                } else {
+                    "nonessential"
+                },
+                site.gene,
+                site.id,
+                site.feature.chrom,
+                site.feature.island,
+                site.beta[0],
+                site.beta[1],
+                site.expression[0],
+                site.feature.sequence.unwrap(),
+                site.feature.density,
+                d,
+                sites[*i].beta[4].is_finite() && sites[*j].beta[4].is_finite()
+            )?;
+        }
+    }
+    let mut contrasts = vec![];
+    for (index, day) in days.iter().enumerate().skip(2) {
+        let mut q = vec![];
+        let mut c = vec![];
+        for (pair, (i, j, _)) in pairs.iter().enumerate() {
+            let a = recovery_fraction(&sites[*i].beta, index);
+            let b = recovery_fraction(&sites[*j].beta, index);
+            if !a.is_finite() || !b.is_finite() {
+                continue;
+            }
+            q.push(a);
+            c.push(b);
+            writeln!(
+                observations,
+                "{pair},{},{},{day},{a},{b},{}",
+                sites[*i].gene,
+                sites[*j].gene,
+                a - b
+            )?;
+        }
+        let differences: Vec<_> = q.iter().zip(&c).map(|(a, b)| a - b).collect();
+        let (lo, hi) = if differences.is_empty() {
+            (f64::NAN, f64::NAN)
+        } else {
+            interval(&differences, 20261003)
+        };
+        writeln!(
+            summary,
+            "DNA_day{day},{},{},{},{},{lo},{hi}",
+            q.len(),
+            mean(&q),
+            mean(&c),
+            mean(&differences)
+        )?;
+        if *day == 42 {
+            contrasts = differences;
+        }
+    }
+    // Expression is an independently measured secondary readout; it never selects loci.
+    let mut q = vec![];
+    let mut c = vec![];
+    for (i, j, _) in &pairs {
+        let a = &sites[*i].expression;
+        let b = &sites[*j].expression;
+        if a.iter().chain(b).any(|v| !v.is_finite())
+            || (a[0] - a[1]).abs() < 0.25
+            || (b[0] - b[1]).abs() < 0.25
+        {
+            continue;
+        }
+        q.push(((a[0] - a[1]).abs() - (a[0] - a[4]).abs()) / (a[0] - a[1]).abs());
+        c.push(((b[0] - b[1]).abs() - (b[0] - b[4]).abs()) / (b[0] - b[1]).abs());
+    }
+    let differences: Vec<_> = q.iter().zip(&c).map(|(a, b)| a - b).collect();
+    let (lo, hi) = if differences.is_empty() {
+        (f64::NAN, f64::NAN)
+    } else {
+        interval(&differences, 20261003)
+    };
+    writeln!(
+        summary,
+        "RNA_day42,{},{},{},{},{lo},{hi}",
+        q.len(),
+        mean(&q),
+        mean(&c),
+        mean(&differences)
+    )?;
+    // Mutation-specific baseline/loss normalization: descriptive positive control, no causal identification.
+    for (index, day) in days.iter().enumerate().skip(2) {
+        let mut wt = vec![];
+        let mut mutant = vec![];
+        for (i, j, _) in &pairs {
+            for site in [&sites[*i], &sites[*j]] {
+                let values = &matrix[&site.id];
+                let beta: Vec<_> = mutant_indices.iter().map(|ix| values[ix[0]]).collect();
+                if beta[0] < 0.7 || beta[0] - beta[1] < 0.15 {
+                    continue;
+                }
+                let (a, b) = (
+                    recovery_fraction(&site.beta, index),
+                    recovery_fraction(&beta, index),
+                );
+                if a.is_finite() && b.is_finite() {
+                    wt.push(a);
+                    mutant.push(b);
+                }
+            }
+        }
+        let d: Vec<_> = wt.iter().zip(&mutant).map(|(a, b)| a - b).collect();
+        let (lo, hi) = if d.is_empty() {
+            (f64::NAN, f64::NAN)
+        } else {
+            interval(&d, 20261003)
+        };
+        writeln!(
+            summary,
+            "WT_minus_3BKO_day{day},{},{},{},{},{lo},{hi}",
+            wt.len(),
+            mean(&wt),
+            mean(&mutant),
+            mean(&d)
+        )?;
+    }
+    let q_sites = sites.iter().filter(|s| s.essential).count();
+    let c_genes: BTreeSet<_> = controls.iter().map(|i| &sites[*i].gene).collect();
+    fs::write(format!("{out}/{prefix}_data_audit.md"),format!("# Recovery pilot data audit\n\nGSE51810: {} methylation arrays, one WT and one DNMT3B-KO array at each requested time. GSE51811: {} expression arrays; two WT arrays per time, averaged on log2(value+1) scale. Sample titles define genotype/time because GEO characteristics contain inconsistent labels. BODY-only/single-gene mapping uses the frozen hg19 GPL13534 table; expression mapping uses GPL10558 Symbol with no inferred aliases. No methylation detection-p filtering is possible from these series matrices. Baseline RNA detection filtering in this run: {detected_only}; detected-only sensitivity requires p<=0.01 in both WT baseline arrays and never uses later detection scores. Negative processed RNA intensities produce unavailable log2 measurements rather than being clipped. Gene essentiality does not establish the importance of its BODY methylation.\n\nExternal reference: {} core-essential and {} nonessential symbols. Eligible after baseline/loss/context/expression filters: {q_sites} essential probes/{} genes and {} nonessential probes/{} genes. Greedy deterministic nearest matching without reuse of either gene produces {} pairs; {} have finite primary outcomes. One probe pair per distinct gene pair balances genes. Matching fixes chromosome/CGI and calipers baseline beta 0.1, induced loss 0.1, baseline expression 2 log2 units, sequence rank 0.25 and CpG density 0.02. Alphabetical essential-gene order can affect support. Matching never uses later DNA/RNA outcomes.\n\nPrimary mean essential-minus-control day42 recovery: {}. Intervals in the CSV resample matched loci and describe heterogeneity; they do not estimate biological reproducibility. The primary interpretation is feasibility only.\n",titles.len(),rna_titles.len(),essential.len(),nonessential.len(),q_genes.len(),controls.len(),c_genes.len(),pairs.len(),contrasts.len(),mean(&contrasts)))?;
+    println!(
+        "Recovery pilot detected_only={detected_only}: {} gene pairs; day42 essential-minus-control recovery {}",
+        pairs.len(),
+        mean(&contrasts)
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod validation_tests {
     use super::*;
+    #[test]
+    fn recovery_titles_separate_genotypes_and_day_numbers() {
+        let titles: Vec<_> = [
+            "HCT116 Ctrl (2)",
+            "HCT116 D5_1",
+            "HCT116 D14_2",
+            "HCT116 1KO Ctrl",
+            "HCT116 3BKO Ctrl_1",
+            "HCT116 3BKO  5-Aza-CdR D10_1",
+            "HCT116 3BKO  5-Aza-CdR D14_2",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        assert_eq!(
+            recovery_indices(&titles, "WT", &[0, 5, 14]).unwrap(),
+            vec![vec![0], vec![1], vec![2]]
+        );
+        assert_eq!(
+            recovery_indices(&titles, "3BKO", &[0, 10, 14]).unwrap(),
+            vec![vec![4], vec![5], vec![6]]
+        );
+        assert!(recovery_indices(&titles, "WT", &[10]).is_err());
+        // Overshoot and continued loss are observable outcomes, not clipped recovery.
+        assert!((recovery_fraction(&[0.8, 0.4, 1.0], 2) - 1.5).abs() < 1e-12);
+        assert!((recovery_fraction(&[0.8, 0.4, 0.2], 2) + 0.5).abs() < 1e-12);
+    }
     #[test]
     fn exact_multisite_killing_reduces_to_independent_chains() {
         let time = 3.0;

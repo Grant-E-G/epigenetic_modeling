@@ -2,7 +2,11 @@
 
 Research on methylation maintenance, functional constraint, selection and identity loss.
 
-The model specification is in [notes/epigenetic_drift_model_spec_v2.md](notes/epigenetic_drift_model_spec_v2.md). The compact Rust implementation and reproducibility commands are in [code/README.md](code/README.md), current results in [code/results/results.md](code/results/results.md), extended biological tests in [code/results/six_test_validation.md](code/results/six_test_validation.md), and the annotated literature review in [notes/reading_list.md](notes/reading_list.md). The initial computational run does not yet establish functional constraint or biological identity loss.
+The model specification is in [notes/epigenetic_drift_model_spec_v2.md](notes/epigenetic_drift_model_spec_v2.md). The compact Rust implementation and reproducibility commands are in [code/README.md](code/README.md), current results in [code/results/results.md](code/results/results.md), extended biological tests in [code/results/six_test_validation.md](code/results/six_test_validation.md), and the annotated literature review in [notes/reading_list.md](notes/reading_list.md). The initial computational run does not yet establish functional constraint or biological identity loss. The current [experiment brief](notes/experiment_brief.md) records a functional-editing pilot and the conditions for proceeding to a recovery experiment.
+
+## Scientific requirement
+
+The equations are revisable; the biological objective is not. A distinctive mechanism must make a restrictive, prospectively specified biological prediction that survives testing in a new condition and cannot be rescued by condition-specific refitting. Better curve fitting, age prediction, or latent-state flexibility alone does not establish biological value. Compare against strong empirical predictors, freeze external functional annotations before outcomes, and distinguish intrinsic restoration from changing clone representation. Negative tests must narrow or retire claims rather than trigger unrestricted complexity. See [the research plan](notes/research_plan.md#biological-prediction-contract-2026-10-03) for the decision rules and current experiment direction.
 
 ## Repository Layout
 

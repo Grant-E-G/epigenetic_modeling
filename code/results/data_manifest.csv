@@ -7,3 +7,6 @@ GSE179848,345,9,human primary fibroblast,days grown and passage metadata,process
 RepliBS_chr1_chr22,4,1,human embryonic stem cells,0/1/4/16 hours post-pulse,observed methylated and unmethylated read counts,2959 covered fixed-sampled CpGs; time-heldout kinetics comparison
 EPIClone_M123,28782,2,mouse hematopoietic recipients,single harvest across recipients,methylation-sensitive amplification and independent LARRY labels and proteins,1903 or 3285 quality-filtered cells; 370 probes; clone conditioning and representation
 GSE145698,18,3,mouse embryonic stem cells,WT and five DNMT1 mutant-rescue genotypes,observed methylated and total eRRBS counts,165106 sampled WT-covered CpGs; chromosome and genotype-combination holdout
+GSE51810,22,one array per genotype/time,HCT116 and DNMT knockout derivatives,baseline and days5/10/14/24/42/54/68,450K processed beta,pulse-washout functional-recovery feasibility pilot
+GSE51811,18,two expression arrays per sampled condition/time,HCT116 and DNMT3B knockout,WT baseline and days5/14/24/42; knockout baseline and days10/42/54,HT12 processed intensity plus baseline detection p,functional recovery lacks matched support
+BAGEL_CEGv2_NEGv1,1611,external reference genes,human cultured cells,not longitudinal,684 essential and 927 nonessential symbols,frozen independent gene-fitness labels; not methylation-mark importance

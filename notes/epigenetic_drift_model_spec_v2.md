@@ -1,4 +1,6 @@
 # Epigenetic Drift as a Constrained Stochastic Process
+
+Research direction update (2026-10-03): the mathematical formulation is revisable. The governing scientific objective and rejection criteria are in [research_plan.md](research_plan.md#biological-prediction-contract-2026-10-03); the current experiment direction and revised mechanism accounting are in [experiment_brief.md](experiment_brief.md). This specification remains a design reference, not a commitment to retain unsupported components.
 ## Model specification, novelty check, and falsification-first analysis plan
 
 **Purpose:** handoff specification for a coding/research agent.

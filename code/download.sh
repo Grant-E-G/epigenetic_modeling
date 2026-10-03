@@ -39,4 +39,10 @@ fetch EPIClone_processing.Rmd "$clone/processing_vignette.Rmd"
 fetch EPIClone_panel.tsv "$clone/infos/panel_info_dropout_pwm.tsv"
 fetch EPIClone_mouse3_umi.tsv.gz https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM8653nnn/GSM8653743/suppl/GSM8653743_LARRY_mouse3-umi-counts.tsv.gz
 fetch EPIClone_mouse4_umi.tsv.gz https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM8653nnn/GSM8653744/suppl/GSM8653744_LARRY_mouse4-umi-counts.tsv.gz
+fetch GSE51810_series_matrix.txt.gz "$base/GSE51nnn/GSE51810/matrix/GSE51810_series_matrix.txt.gz"
+fetch GSE51811_series_matrix.txt.gz "$base/GSE51nnn/GSE51811/matrix/GSE51811_series_matrix.txt.gz"
+fetch GSE51811_family.soft.gz "$base/GSE51nnn/GSE51811/soft/GSE51811_family.soft.gz"
+fitness=https://raw.githubusercontent.com/hart-lab/bagel/53388adbb4fb0931e5c9dda135502be19e4555f0
+fetch BAGEL_CEGv2.txt "$fitness/CEGv2.txt"
+fetch BAGEL_NEGv1.txt "$fitness/NEGv1.txt"
 sha256sum -c code/results/SHA256SUMS
