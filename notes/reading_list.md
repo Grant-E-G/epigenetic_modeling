@@ -69,3 +69,12 @@ Yang et al. (2014), [Gene Body Methylation can alter Gene Expression and is a Th
 The [BAGEL reference lists](https://github.com/hart-lab/bagel/tree/53388adbb4fb0931e5c9dda135502be19e4555f0) provide independent gene-fitness categories. [Kim and Hart (2021)](https://link.springer.com/article/10.1186/s13073-020-00809-3) describes the associated classifier. Gene knockout essentiality does not establish functional necessity of a mapped CpG or gene-body region.
 
 [Liu et al. (2016), Editing DNA Methylation in the Mammalian Genome](https://pubmed.ncbi.nlm.nih.gov/27662091/), and [Morita et al. (2016)](https://www.nature.com/articles/nbt.3658) establish feasibility of targeted methylation editing at particular loci. They support an experimental tool, not editability or function of our four candidate regions. The local-function gate and prospective recovery design are in [experiment_brief.md](experiment_brief.md). Catalytically inactive occupancy controls, editor clearance, and separation of 5mC from 5hmC are required for interpreting a TET-based test.
+
+
+## Broader functional and recovery data identified during cost optimization
+
+[Tejedor et al. (2023), Clinical Epigenetics](https://link.springer.com/article/10.1186/s13148-023-01546-1) provides local active/dead-editor and transcriptional-activation comparisons across 56 promoter targets in two colorectal lines. These can replace knockout essentiality with intervention-based functional evidence, subject to catalytic specificity, edit success and screen selection. It has no recovery trajectories.
+
+[Masalmeh et al. (2021), Nature Communications](https://www.nature.com/articles/s41467-020-20716-w) supplies human RRBS pulse/washout and enzyme comparisons, with H3K36me3 as an established recruitment mechanism. Variable recovery slopes do not generally rule out selection; use chromatin context as a competing explanation for functional scores.
+
+[Ginno et al. (2020), Nature Communications](https://www.nature.com/articles/s41467-020-16354-x) already models site-specific methylation/demethylation kinetics and identifiability under enzyme deletion. Rate heterogeneity and context effects alone are not our novelty. Mouse enzyme dynamics do not directly validate human local functional importance. [Achinger-Kawecka et al. (2024), Nature Structural & Molecular Biology](https://www.nature.com/articles/s41594-023-01181-7) offers a separate breast-cancer withdrawal setting with expression/chromatin readouts; recovery-associated transcription is established biology, not our novel mechanism.
