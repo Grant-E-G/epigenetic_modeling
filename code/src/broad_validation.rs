@@ -139,6 +139,43 @@ struct Recovery {
     cost: f64,
     outcomes: [Option<f64>; 2],
 }
+fn export_audit_design(
+    rows: &[Recovery],
+    out: &str,
+    label: &str,
+    output: &mut BufWriter<File>,
+) -> Result<()> {
+    let mut batches = BTreeMap::new();
+    for line in reader(&format!("{out}/broad_screen_batches.csv"))?
+        .lines()
+        .skip(1)
+    {
+        let f = fields(&line?, ',');
+        if f[0] == "HCT116" {
+            batches.insert(f[1].clone(), f[2].clone());
+        }
+    }
+    for r in rows {
+        let mut values = vec![
+            label.to_string(),
+            r.gene.clone(),
+            batches[&r.gene].clone(),
+            r.cost.to_string(),
+        ];
+        values.extend(
+            r.outcomes
+                .iter()
+                .map(|v| v.map_or_else(|| "NA".into(), |v| v.to_string())),
+        );
+        values.extend((0..7).map(|i| {
+            r.features
+                .get(i)
+                .map_or_else(|| "NA".into(), ToString::to_string)
+        }));
+        writeln!(output, "{}", values.join(","))?;
+    }
+    Ok(())
+}
 fn recovery_predictions(
     rows: &[Recovery],
     out: &str,
@@ -369,6 +406,11 @@ fn human_recovery(root: &str, out: &str, scores: &BTreeMap<String, f64>) -> Resu
         (10.0, 0.5, 0.2, "loss020"),
     ];
     let mut report = String::new();
+    let mut audit = writer("data/derived/broad_power_design.csv")?;
+    writeln!(
+        audit,
+        "analysis,gene,batch,functional_cost,y0,y1,x0,x1,x2,x3,x4,x5,x6"
+    )?;
     let mut prediction_summary=String::from("\n| Gate / score | Day | Penalty | Regions | Context RMSE | Signed cost MSE change | Absolute cost MSE change |\n|---|---:|---:|---:|---:|---:|---:|\n");
     for (coverage, min_baseline, min_loss, label) in gates {
         let mut rows = vec![];
@@ -450,6 +492,8 @@ fn human_recovery(root: &str, out: &str, scores: &BTreeMap<String, f64>) -> Resu
         }
         prediction_summary.push_str(&recovery_predictions(&rows, out, label, [28, 40])?);
         if label == "primary" {
+            export_audit_design(&rows, out, "primary", &mut audit)?;
+            export_audit_design(&speed_rows, out, "speed", &mut audit)?;
             prediction_summary.push_str(&recovery_predictions(
                 &speed_rows,
                 out,
@@ -895,6 +939,502 @@ fn mouse_kinetics(root: &str, out: &str) -> Result<String> {
     Ok(format!("## Replicated mouse enzyme-deletion forecasts\n\nRates fit only Cre days 4/8/10/13 in two cultures; predictions exclude the third culture and forecast days 17/29 from its measured day-0 baseline. Three rotations share training data and are not three independent experiments. Equal CpG/time/culture squared error is the fitting criterion; read counts are coverage filters, not independent biological samples. No published confidence label or fitted rate selects our subset. The source table itself was filtered by its authors using all time points and excludes one high-variability amplicon; this limits the independence of the retrospective validation. An exploratory two-parameter empirical comparator fits an amplitude and exponential loss rate from day 4 onward, without using the held-out baseline. It was added after the initial amplicon results and does not identify enzyme clearance. WT has TET activity; TTKO lacks TET enzymes. Both undergo de-novo DNMT deletion. Constant CTMC and decaying de-novo activity have two site-specific rates; fixed clearance 0.5/day is the published enzyme-clearance mechanism, 0.25/1.0 are prespecified sensitivities. Grid rates include zero and log10 -4..0 in 0.1 steps, maximum 1/day.\n{report}\nMock controls are summarized separately by amplicon/culture/time. Clearance fits test an already published intervention mechanism, not functional protection. Amplicons are correlated CpG blocks and were deliberately selected by the original authors; hundreds of CpGs do not constitute hundreds of independent biological replicates. No uncertainty interval assumes otherwise.\n"))
 }
 
+// Linear weights reproduce the frozen ridge pipeline exactly while avoiding
+// repeated matrix factorization during thousands of design-conditional audits.
+struct AuditFold {
+    held: usize,
+    train: Vec<usize>,
+    x: Vec<Vec<f64>>,
+    held_x: Vec<f64>,
+    inverse: Vec<Vec<f64>>,
+    baseline: Vec<f64>,
+    penalty: f64,
+}
+fn audit_standardize(x: &[Vec<f64>]) -> (Vec<f64>, Vec<f64>, Vec<Vec<f64>>) {
+    let p = x[0].len();
+    let center: Vec<_> = (0..p)
+        .map(|j| {
+            if j == 0 {
+                0.0
+            } else {
+                mean(&x.iter().map(|r| r[j]).collect::<Vec<_>>())
+            }
+        })
+        .collect();
+    let scale: Vec<_> = (0..p)
+        .map(|j| {
+            if j == 0 {
+                1.0
+            } else {
+                mean(
+                    &x.iter()
+                        .map(|r| (r[j] - center[j]).powi(2))
+                        .collect::<Vec<_>>(),
+                )
+                .sqrt()
+                .max(1e-8)
+            }
+        })
+        .collect();
+    let z = x
+        .iter()
+        .map(|r| {
+            r.iter()
+                .enumerate()
+                .map(|(j, v)| (v - center[j]) / scale[j])
+                .collect()
+        })
+        .collect();
+    (center, scale, z)
+}
+fn audit_inverse(x: &[Vec<f64>], penalty: f64) -> Result<Vec<Vec<f64>>> {
+    let p = x[0].len();
+    let mut normal = NormalEquations::new(p);
+    for r in x {
+        normal.add_xy(r, 0.0, 1.0);
+    }
+    let mut inverse = vec![vec![0.0; p]; p];
+    for j in 0..p {
+        normal.rhs.fill(0.0);
+        normal.rhs[j] = 1.0;
+        let (column, _) = normal.fit(p, penalty)?;
+        for i in 0..p {
+            inverse[i][j] = column[i];
+        }
+    }
+    Ok(inverse)
+}
+fn audit_dot(x: &[f64], y: &[f64]) -> f64 {
+    x.iter().zip(y).map(|(a, b)| a * b).sum()
+}
+fn audit_product(inverse: &[Vec<f64>], rhs: &[f64]) -> Vec<f64> {
+    inverse.iter().map(|r| audit_dot(r, rhs)).collect()
+}
+impl AuditFold {
+    fn new(features: &[Vec<f64>], held: usize, penalty: f64) -> Result<Self> {
+        let train: Vec<_> = (0..features.len()).filter(|i| *i != held).collect();
+        let raw: Vec<_> = train.iter().map(|i| features[*i].clone()).collect();
+        let (center, scale, x) = audit_standardize(&raw);
+        let held_x: Vec<_> = features[held]
+            .iter()
+            .enumerate()
+            .map(|(j, v)| (v - center[j]) / scale[j])
+            .collect();
+        let inverse = audit_inverse(&x, penalty)?;
+        let coefficient = audit_product(&inverse, &held_x);
+        let baseline = x.iter().map(|r| audit_dot(r, &coefficient)).collect();
+        Ok(Self {
+            held,
+            train,
+            x,
+            held_x,
+            inverse,
+            baseline,
+            penalty,
+        })
+    }
+    fn weights(&self, q: &[f64]) -> Vec<f64> {
+        let mut weights = vec![0.0; q.len()];
+        let values: Vec<_> = self.train.iter().map(|i| q[*i]).collect();
+        let center = mean(&values);
+        let scale = mean(
+            &values
+                .iter()
+                .map(|q| (q - center).powi(2))
+                .collect::<Vec<_>>(),
+        )
+        .sqrt()
+        .max(1e-8);
+        let z: Vec<_> = values.iter().map(|q| (q - center) / scale).collect();
+        let rhs: Vec<_> = (0..self.held_x.len())
+            .map(|j| self.x.iter().zip(&z).map(|(x, q)| x[j] * q).sum())
+            .collect();
+        let projection = audit_product(&self.inverse, &rhs);
+        let denominator = audit_dot(&z, &z) + self.penalty * self.train.len() as f64
+            - audit_dot(&rhs, &projection);
+        let leverage =
+            ((q[self.held] - center) / scale - audit_dot(&self.held_x, &projection)) / denominator;
+        for (j, i) in self.train.iter().enumerate() {
+            weights[*i] = self.baseline[j] + leverage * (z[j] - audit_dot(&self.x[j], &projection));
+        }
+        weights
+    }
+    fn baseline_weights(&self, n: usize) -> Vec<f64> {
+        let mut w = vec![0.0; n];
+        for (j, i) in self.train.iter().enumerate() {
+            w[*i] = self.baseline[j];
+        }
+        w
+    }
+}
+fn audit_gain(y: &[f64], base: &[Vec<f64>], model: &[Vec<f64>]) -> f64 {
+    // Explicit loops keep observation vectors separate from scalar outcomes.
+    let mse = |matrix: &[Vec<f64>]| {
+        matrix
+            .iter()
+            .enumerate()
+            .map(|(i, w)| (audit_dot(w, y) - y[i]).powi(2))
+            .sum::<f64>()
+    };
+    1.0 - mse(model) / mse(base).max(1e-15)
+}
+fn audit_full_weights(x: &[Vec<f64>], penalty: f64) -> Result<Vec<Vec<f64>>> {
+    let (_, _, z) = audit_standardize(x);
+    let inverse = audit_inverse(&z, penalty)?;
+    Ok(z.iter()
+        .map(|r| {
+            let coefficient = audit_product(&inverse, r);
+            z.iter().map(|t| audit_dot(t, &coefficient)).collect()
+        })
+        .collect())
+}
+fn audit_fit_predict(
+    rows: &[&Recovery],
+    held: &Recovery,
+    day: usize,
+    penalty: f64,
+    with_q: bool,
+) -> Result<f64> {
+    let feature = |r: &Recovery| {
+        let mut x = r.features.clone();
+        if with_q {
+            x.push(r.cost);
+        }
+        x
+    };
+    let raw: Vec<_> = rows.iter().map(|r| feature(r)).collect();
+    let (center, scale, x) = audit_standardize(&raw);
+    let mut normal = NormalEquations::new(x[0].len());
+    for (r, x) in rows.iter().zip(&x) {
+        normal.add_xy(x, r.outcomes[day].unwrap(), 1.0);
+    }
+    let (b, _) = normal.fit(x[0].len(), penalty)?;
+    let held = feature(held)
+        .iter()
+        .enumerate()
+        .map(|(j, v)| (v - center[j]) / scale[j])
+        .collect::<Vec<_>>();
+    Ok(audit_dot(&held, &b))
+}
+fn audit_bootstrap(
+    rows: &[Recovery],
+    day: usize,
+    penalty: f64,
+    rng: &mut rand::rngs::StdRng,
+) -> Result<f64> {
+    use rand::Rng;
+    let draw: Vec<_> = (0..rows.len())
+        .map(|_| &rows[rng.gen_range(0..rows.len())])
+        .collect();
+    let mut errors = [0.0; 2];
+    for held in &draw {
+        let train: Vec<_> = draw
+            .iter()
+            .copied()
+            .filter(|r| r.gene != held.gene)
+            .collect();
+        for (model, error) in errors.iter_mut().enumerate() {
+            let p = audit_fit_predict(&train, held, day, penalty, model == 1)?;
+            *error += (p - held.outcomes[day].unwrap()).powi(2);
+        }
+    }
+    Ok(1.0 - errors[1] / errors[0].max(1e-15))
+}
+fn audit_coefficient_weights(features: &[Vec<f64>], q: &[f64], penalty: f64) -> Result<Vec<f64>> {
+    let x: Vec<_> = features
+        .iter()
+        .zip(q)
+        .map(|(x, q)| {
+            let mut v = x.clone();
+            v.push(*q);
+            v
+        })
+        .collect();
+    let (_, scale, z) = audit_standardize(&x);
+    let inverse = audit_inverse(&z, penalty)?;
+    Ok(z.iter()
+        .map(|r| audit_dot(inverse.last().unwrap(), r) / scale.last().unwrap())
+        .collect())
+}
+fn audit_bound(value: f64, row: &Recovery) -> f64 {
+    let loss = row.features[2];
+    let day3 = row.features[1] - loss;
+    value.clamp(-day3 / loss, (1.0 - day3) / loss)
+}
+pub fn power_audit(out: &str) -> Result<()> {
+    use rand::{seq::SliceRandom, Rng, SeedableRng};
+    let mut designs: BTreeMap<String, Vec<(Recovery, String)>> = BTreeMap::new();
+    for line in reader("data/derived/broad_power_design.csv")?
+        .lines()
+        .skip(1)
+    {
+        let f = fields(&line?, ',');
+        let p = if f[0] == "primary" { 7 } else { 4 };
+        let features = f[6..6 + p]
+            .iter()
+            .map(|x| x.parse())
+            .collect::<std::result::Result<Vec<f64>, _>>()?;
+        designs.entry(f[0].clone()).or_default().push((
+            Recovery {
+                gene: f[1].clone(),
+                cost: f[3].parse()?,
+                features,
+                outcomes: [numeric(&f[4]), numeric(&f[5])],
+            },
+            f[2].clone(),
+        ));
+    }
+    let mut summary = writer(&format!("{out}/functional_power_summary.csv"))?;
+    writeln!(summary,"analysis,day,penalty,regions,observed_gain,global_permutation_p,stratified_permutation_p,global_null_gain_p05,global_null_gain_p50,global_null_gain_p95,stratified_null_gain_p05,stratified_null_gain_p50,stratified_null_gain_p95,bootstrap_gain_p025,bootstrap_gain_p975")?;
+    let mut power = writer(&format!("{out}/functional_power_injection.csv"))?;
+    writeln!(power,"analysis,day,penalty,regions,mode,target_oracle_gain,achieved_oracle_signal_fraction,beta_per_score_unit,effect_per_score_sd,noise_sd,coefficient_threshold_gain,any_gain_probability,calibrated_detection_probability,mc_standard_error,mean_realized_gain,bound_violation_fraction,replicates")?;
+    let mut draws = writer("data/derived/functional_power_draws.csv")?;
+    writeln!(
+        draws,
+        "analysis,day,penalty,procedure,mode,target,replicate,gain"
+    )?;
+    let mut report=String::from("# Functional-effect detectability audit\n\nPrimary audit: signed HCT116 score, day 40, ridge penalty 0.01. Other days/penalties are sensitivities. Positive gain means lower held-out MSE. The linear-weight implementation exactly reproduces the frozen training-only scaling, ridge penalties and whole-region exclusion. The design is regenerated from checksum-verified source inputs; neither injected outcomes nor resampling alter coverage/eligibility or missingness. These estimates condition on one observed recovery culture and noisy observed functional scores; they are not biological-culture power estimates.\n\n## Observed effect and empirical null\n\n| Analysis | Day | Penalty | Regions | Observed gain | Global permutation p | Within-batch permutation p | Bootstrap 95% range |\n|---|---:|---:|---:|---:|---:|---:|---:|\n");
+    let mut primary_power=String::from("\n## Primary injection results\n\n| Generator | Target oracle reduction | Achieved signal fraction | Effect per score SD | Any MSE gain | Calibrated detection | MC SE |\n|---|---:|---:|---:|---:|---:|---:|\n");
+    let mut diagnostics = String::from("\n## Fixed-design diagnostics\n\n| Analysis | Day | Regions | Score SD | Residual score SD | Score variance explained by context | Largest region share of residual score energy |\n|---|---:|---:|---:|---:|---:|---:|\n");
+    for (analysis, design) in designs {
+        for day in 0..2 {
+            let available: Vec<_> = design
+                .iter()
+                .filter(|(r, _)| r.outcomes[day].is_some())
+                .collect();
+            let rows: Vec<_> = available.iter().map(|(r, _)| r.clone()).collect();
+            let batches: Vec<_> = available.iter().map(|(_, b)| b.clone()).collect();
+            let n = rows.len();
+            let features: Vec<_> = rows.iter().map(|r| r.features.clone()).collect();
+            let q: Vec<_> = rows.iter().map(|r| r.cost).collect();
+            let y: Vec<_> = rows.iter().map(|r| r.outcomes[day].unwrap()).collect();
+            let actual_day = if analysis == "primary" {
+                [28, 40][day]
+            } else {
+                [6, 13][day]
+            };
+            // Context residualization defines an incremental available signal,
+            // not a claim that functional effects change a biological rate.
+            let projection = audit_full_weights(&features, 0.0)?;
+            let q_res: Vec<_> = projection
+                .iter()
+                .enumerate()
+                .map(|(i, w)| q[i] - audit_dot(w, &q))
+                .collect();
+            let qvar = mean(&q_res.iter().map(|q| q * q).collect::<Vec<_>>());
+            let total_score_variance =
+                mean(&q.iter().map(|v| (v - mean(&q)).powi(2)).collect::<Vec<_>>());
+            let largest = q_res.iter().map(|q| q * q).fold(0.0_f64, f64::max) / (n as f64 * qvar);
+            diagnostics.push_str(&format!(
+                "| {analysis} | {actual_day} | {n} | {:.5} | {:.5} | {:.2}% | {:.2}% |\n",
+                total_score_variance.sqrt(),
+                qvar.sqrt(),
+                100.0 * (1.0 - qvar / total_score_variance),
+                100.0 * largest
+            ));
+            if qvar < 1e-15 {
+                return Err("no residual functional-score variation".into());
+            }
+            for penalty in [0.001, 0.01, 0.1] {
+                eprintln!("Power audit {analysis} day{actual_day} penalty{penalty}, n={n}");
+                let seed = 20261004 + actual_day as u64 * 10000 + (penalty * 1000.0) as u64;
+                let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+                let folds: Vec<_> = (0..n)
+                    .map(|i| AuditFold::new(&features, i, penalty))
+                    .collect::<Result<_>>()?;
+                let base: Vec<_> = folds.iter().map(|f| f.baseline_weights(n)).collect();
+                let model: Vec<_> = folds.iter().map(|f| f.weights(&q)).collect();
+                let observed = audit_gain(&y, &base, &model);
+                let mut permutations = [vec![], vec![]];
+                let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+                for (i, b) in batches.iter().enumerate() {
+                    groups.entry(b.clone()).or_default().push(i);
+                }
+                for (kind, distribution) in permutations.iter_mut().enumerate() {
+                    for replicate in 0..999 {
+                        let mut perm = q.clone();
+                        if kind == 0 {
+                            perm.shuffle(&mut rng);
+                        } else {
+                            for indices in groups.values() {
+                                let mut shuffled: Vec<_> = indices.iter().map(|i| q[*i]).collect();
+                                shuffled.shuffle(&mut rng);
+                                for (i, value) in indices.iter().zip(shuffled) {
+                                    perm[*i] = value;
+                                }
+                            }
+                        }
+                        let weights: Vec<_> = folds.iter().map(|f| f.weights(&perm)).collect();
+                        let gain = audit_gain(&y, &base, &weights);
+                        distribution.push(gain);
+                        writeln!(draws,"{analysis},{actual_day},{penalty},permutation{kind},NA,NA,{replicate},{gain}")?;
+                    }
+                }
+                let pvalue = |v: &[f64]| {
+                    (1 + v.iter().filter(|g| **g >= observed).count()) as f64 / (v.len() + 1) as f64
+                };
+                let mut bootstrap = vec![];
+                for replicate in 0..500 {
+                    let gain = audit_bootstrap(&rows, day, penalty, &mut rng)?;
+                    bootstrap.push(gain);
+                    writeln!(
+                        draws,
+                        "{analysis},{actual_day},{penalty},bootstrap,NA,NA,{replicate},{gain}"
+                    )?;
+                }
+                let interval = [
+                    quantile(bootstrap.clone(), 0.025),
+                    quantile(bootstrap, 0.975),
+                ];
+                writeln!(summary,"{analysis},{actual_day},{penalty},{n},{observed},{},{},{},{},{},{},{},{},{},{}",pvalue(&permutations[0]),pvalue(&permutations[1]),quantile(permutations[0].clone(),0.05),quantile(permutations[0].clone(),0.5),quantile(permutations[0].clone(),0.95),quantile(permutations[1].clone(),0.05),quantile(permutations[1].clone(),0.5),quantile(permutations[1].clone(),0.95),interval[0],interval[1])?;
+                report.push_str(&format!("| {analysis} | {actual_day} | {penalty} | {n} | {:.2}% | {:.3} | {:.3} | {:.2}% .. {:.2}% |\n",100.0*observed,pvalue(&permutations[0]),pvalue(&permutations[1]),100.0*interval[0],100.0*interval[1]));
+                let full = audit_full_weights(&features, penalty)?;
+                let mu: Vec<_> = full.iter().map(|w| audit_dot(w, &y)).collect();
+                let raw_res: Vec<_> = base
+                    .iter()
+                    .enumerate()
+                    .map(|(i, w)| y[i] - audit_dot(w, &y))
+                    .collect();
+                let average = mean(&raw_res);
+                let residual: Vec<_> = raw_res.iter().map(|e| e - average).collect();
+                let noise = mean(&residual.iter().map(|e| e * e).collect::<Vec<_>>());
+                let coefficients = audit_coefficient_weights(&features, &q, penalty)?;
+                for bounded in [false, true] {
+                    let mode = if bounded {
+                        "physical_bounds"
+                    } else {
+                        "unbounded"
+                    };
+                    let clip =
+                        |v: f64, i: usize| if bounded { audit_bound(v, &rows[i]) } else { v };
+                    // Calibrate detection using a separate null bank; assessment
+                    // repeats do not choose the rejection threshold.
+                    let mut null_bank = vec![];
+                    for _ in 0..2000 {
+                        let sample: Vec<_> = (0..n)
+                            .map(|i| {
+                                clip(
+                                    mu[i]
+                                        + if rng.gen_bool(0.5) {
+                                            residual[i]
+                                        } else {
+                                            -residual[i]
+                                        },
+                                    i,
+                                )
+                            })
+                            .collect();
+                        let g = audit_gain(&sample, &base, &model);
+                        null_bank.push(if audit_dot(&coefficients, &sample) > 0.0 {
+                            g
+                        } else {
+                            f64::NEG_INFINITY
+                        });
+                    }
+                    // Quantile helper drops non-finite values; use a finite floor
+                    // so negative-coefficient draws remain in the null bank.
+                    for g in &mut null_bank {
+                        if !g.is_finite() {
+                            *g = -1e6;
+                        }
+                    }
+                    let cutoff = quantile(null_bank, 0.95).max(0.0);
+                    for target in [0.0, 0.03, 0.05, 0.1, 0.2] {
+                        let beta = if target == 0.0 {
+                            0.0
+                        } else {
+                            (target / (1.0 - target) * noise / qvar).sqrt()
+                        };
+                        let null_mean: Vec<_> = (0..n)
+                            .map(|i| {
+                                0.5 * (clip(mu[i] + residual[i], i) + clip(mu[i] - residual[i], i))
+                            })
+                            .collect();
+                        let true_mean: Vec<_> = (0..n)
+                            .map(|i| {
+                                0.5 * (clip(mu[i] + residual[i] + beta * q_res[i], i)
+                                    + clip(mu[i] - residual[i] + beta * q_res[i], i))
+                            })
+                            .collect();
+                        let change: Vec<_> = true_mean
+                            .iter()
+                            .zip(null_mean)
+                            .map(|(a, b)| a - b)
+                            .collect();
+                        let available_signal = mean(
+                            &projection
+                                .iter()
+                                .enumerate()
+                                .map(|(i, w)| (change[i] - audit_dot(w, &change)).powi(2))
+                                .collect::<Vec<_>>(),
+                        );
+                        let actual_noise = mean(
+                            &(0..n)
+                                .map(|i| {
+                                    0.25 * (clip(mu[i] + residual[i] + beta * q_res[i], i)
+                                        - clip(mu[i] - residual[i] + beta * q_res[i], i))
+                                    .powi(2)
+                                })
+                                .collect::<Vec<_>>(),
+                        );
+                        let achieved =
+                            available_signal / (available_signal + actual_noise).max(1e-15);
+                        let mut gains = vec![];
+                        let mut any = 0;
+                        let mut detected = 0;
+                        let mut violations = 0;
+                        for replicate in 0..2000 {
+                            let sample: Vec<_> = (0..n)
+                                .map(|i| {
+                                    let v = mu[i]
+                                        + if rng.gen_bool(0.5) {
+                                            residual[i]
+                                        } else {
+                                            -residual[i]
+                                        }
+                                        + beta * q_res[i];
+                                    if (audit_bound(v, &rows[i]) - v).abs() > 1e-12 {
+                                        violations += 1;
+                                    }
+                                    clip(v, i)
+                                })
+                                .collect();
+                            let gain = audit_gain(&sample, &base, &model);
+                            any += usize::from(gain > 0.0);
+                            detected += usize::from(
+                                gain > cutoff && audit_dot(&coefficients, &sample) > 0.0,
+                            );
+                            gains.push(gain);
+                            writeln!(draws,"{analysis},{actual_day},{penalty},injection,{mode},{target},{replicate},{gain}")?;
+                        }
+                        let probability = detected as f64 / 2000.0;
+                        let se = (probability * (1.0 - probability) / 2000.0).sqrt();
+                        let effect_sd = beta * variance(&q).sqrt();
+                        writeln!(power,"{analysis},{actual_day},{penalty},{n},{mode},{target},{achieved},{beta},{effect_sd},{},{cutoff},{},{probability},{se},{},{},2000",noise.sqrt(),any as f64/2000.0,mean(&gains),violations as f64/(2000*n) as f64)?;
+                        if analysis == "primary" && actual_day == 40 && penalty == 0.01 {
+                            primary_power.push_str(&format!(
+                                "| {mode} | {:.0}% | {:.2}% | {:.5} | {:.1}% | {:.1}% | {:.2}% |\n",
+                                100.0 * target,
+                                100.0 * achieved,
+                                effect_sd,
+                                100.0 * any as f64 / 2000.0,
+                                100.0 * probability,
+                                100.0 * se
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    report.push_str(&primary_power);
+    report.push_str(&diagnostics);
+    report.push_str("\n## Interpretation and limits\n\nAn injected beta acts on recovery fraction conditional on the real covariates: y*=context mean + beta*q_res + a signed region residual. It is not a DNMT rate change. Target oracle reductions 3/5/10/20% specify available fixed-design signal relative to the observed context leave-one-out residual variance. They do not assert that ridge achieves those reductions. q_res is the OLS projection residual of the actual observed score; score reliability is treated optimistically as perfect. Context means are ridge fits to this culture. Independent regional wild signs are an assumed error generator, not observed replicate biology. Read-depth-dependent residual magnitudes and actual missingness/filters remain fixed.\n\nPhysical-bound sensitivity clips only simulated methylation to [0,1], using each region's observed day3 and induced loss, then converts back to recovery fraction. It does not clip recovery fractions to [0,1]. The achieved signal fraction measures incremental simulated mean variation after context projection relative to simulated noise; clipping can alter the nominal oracle signal. This ratio is an operational signal/noise diagnostic, not a known true biological effect. Calibrated detection requires positive global fitted score coefficient and MSE gain above a separate zero-injection 95th percentile (floored at zero); zero-injection assessment reports realized false positives. MC standard errors describe simulations only.\n\nGlobal score permutations are not generally exchangeable conditional on context; within-screen-batch permutations address supplied batch grouping but not all biological confounding. Their p-values are empirical diagnostics, not causal significance. Bootstrap intervals resample complete region records and refit, excluding every copy of the held-out gene; they describe regional heterogeneity conditional on this culture. This resampling reduces the unique training-region count, so intervals are not a formally calibrated independent-culture confidence interval. All three penalties and four days are reported without selecting a successful variant.\n\nA low powered audit cannot permanently falsify functional restoration. Even high conditional detectability would only downgrade the tested measured-score/region/regression relationship, not all kinetic effects, functional definitions, tissues or selection. A null protection test does not validate selection.\n");
+    let mut w = writer(&format!("{out}/functional_power_audit.md"))?;
+    write!(w, "{report}")?;
+    Ok(())
+}
+
 pub fn run(root: &str, out: &str) -> Result<()> {
     fs::create_dir_all(out)?;
     let scores = screen(out)?;
@@ -924,6 +1464,45 @@ pub fn run(root: &str, out: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn audit_linear_weights_reproduce_frozen_ridge_and_holdout() {
+        let rows: Vec<_> = (0..15)
+            .map(|i| Recovery {
+                gene: format!("gene{i}"),
+                features: vec![1.0, i as f64 / 15.0, (i as f64).sin()],
+                cost: (i as f64 * 0.7).cos(),
+                outcomes: [Some(0.2 + 0.03 * i as f64), None],
+            })
+            .collect();
+        let features: Vec<_> = rows.iter().map(|r| r.features.clone()).collect();
+        let q: Vec<_> = rows.iter().map(|r| r.cost).collect();
+        let y: Vec<_> = rows.iter().map(|r| r.outcomes[0].unwrap()).collect();
+        for penalty in [0.001, 0.01, 0.1] {
+            for held in 0..rows.len() {
+                let fold = AuditFold::new(&features, held, penalty).unwrap();
+                let train: Vec<_> = rows
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != held)
+                    .map(|(_, r)| r)
+                    .collect();
+                let weights = fold.weights(&q);
+                assert_eq!(weights[held], 0.0);
+                assert!(
+                    (audit_dot(&weights, &y)
+                        - audit_fit_predict(&train, &rows[held], 0, penalty, true).unwrap())
+                    .abs()
+                        < 1e-10
+                );
+                assert!(
+                    (audit_dot(&fold.baseline_weights(rows.len()), &y)
+                        - audit_fit_predict(&train, &rows[held], 0, penalty, false).unwrap())
+                    .abs()
+                        < 1e-10
+                );
+            }
+        }
+    }
     #[test]
     fn clearance_solver_preserves_bounds_and_constant_ctmc() {
         for initial in [0.0, 0.3, 1.0] {

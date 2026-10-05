@@ -310,6 +310,7 @@ fn prepare_functional(root: &str, out: &str) -> Result<()> {
 pub fn run(root: &str, out: &str, command: &str) -> Result<()> {
     match command {
         "broad" => crate::broad_validation::run(root, out)?,
+        "power" => crate::broad_validation::power_audit(out)?,
         "prepare"=>prepare_functional(root,out)?,
         "rna"=>{functional_rna(root,out,8.0)?;functional_rna(root,out,32.0)?;},
         "kinetics"=>maintenance_kinetics(out)?,

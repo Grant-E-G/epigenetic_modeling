@@ -1,4 +1,4 @@
-.PHONY: download verify-data reproduce followup validation recovery broad-download broad-validation check
+.PHONY: download verify-data reproduce followup validation recovery broad-download broad-validation power check
 
 download:
 	bash code/download.sh
@@ -39,3 +39,7 @@ broad-validation:
 	data/tools/format-env/bin/python code/convert_public_data.py broad-verify
 	data/tools/format-env/bin/python code/convert_public_data.py broad
 	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- validation data/raw code/results broad
+
+# Rebuild the exact observed audit design before conditional resampling.
+power: broad-validation
+	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- validation data/raw code/results power

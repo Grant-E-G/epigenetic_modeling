@@ -1456,3 +1456,536 @@ mod validation_tests {
         assert!((pred.survivor_probabilities[0] - expected).abs() < 0.08);
     }
 }
+
+// Revision 3: context/exposure-only molecular transitions, with state fitness
+// entering demography. The older Site/Mechanism APIs above are comparators.
+#[derive(Clone, Debug)]
+pub struct MolecularSite {
+    /// Effective rates calibrated from molecular context, never functional cost.
+    pub gain: f64,
+    pub loss: f64,
+}
+#[derive(Clone, Debug)]
+pub struct ExposureEpoch {
+    pub end: f64,
+    pub gain_multiplier: f64,
+    pub loss_multiplier: f64,
+}
+#[derive(Clone, Debug)]
+pub struct PopulationModel {
+    pub sites: Vec<MolecularSite>,
+    pub epochs: Vec<ExposureEpoch>,
+    /// State-indexed rates; binary bit i is the state of site i.
+    pub birth: Vec<f64>,
+    pub death: Vec<f64>,
+}
+#[derive(Clone, Debug)]
+pub struct PopulationDecomposition {
+    pub methylation: Vec<f64>,
+    pub intrinsic_change: Vec<f64>,
+    pub selection_change: Vec<f64>,
+    pub mean_net_growth: f64,
+}
+#[derive(Clone, Debug)]
+pub struct ClonePopulation {
+    /// Rows retain the supplied independent clone labels; columns are states.
+    pub counts: Vec<Vec<u64>>,
+    pub events: usize,
+    pub extinction_time: Option<f64>,
+    pub end_time: f64,
+}
+/// Signed costs are external effects of departures from the specified fitness
+/// reference. Negative costs allow beneficial drift; this is not identity loss.
+pub fn state_fitness(
+    reference: &[bool],
+    costs: &[f64],
+    baseline: f64,
+    strength: f64,
+) -> Result<Vec<f64>, String> {
+    if reference.is_empty()
+        || reference.len() > 12
+        || reference.len() != costs.len()
+        || costs.iter().any(|x| !x.is_finite())
+        || !baseline.is_finite()
+        || !strength.is_finite()
+        || strength < 0.0
+    {
+        return Err("invalid external state-fitness definition".into());
+    }
+    let fitness: Vec<_> = (0..1 << reference.len())
+        .map(|s| {
+            baseline
+                - strength
+                    * costs
+                        .iter()
+                        .enumerate()
+                        .map(|(i, q)| q * f64::from(((s >> i) & 1 == 1) != reference[i]))
+                        .sum::<f64>()
+        })
+        .collect();
+    if fitness.iter().any(|r| !r.is_finite()) {
+        return Err("state fitness overflow".into());
+    }
+    Ok(fitness)
+}
+/// Net growth does not identify turnover. This explicit nonnegative decomposition
+/// is a modeling choice; alternative birth/death pairs can share these means.
+pub fn state_demography(fitness: &[f64], turnover: f64) -> Result<(Vec<f64>, Vec<f64>), String> {
+    if fitness.is_empty()
+        || fitness.iter().any(|r| !r.is_finite())
+        || !turnover.is_finite()
+        || turnover < 0.0
+    {
+        return Err("invalid state demography".into());
+    }
+    let birth: Vec<_> = fitness.iter().map(|r| turnover + r.max(0.0)).collect();
+    let death: Vec<_> = fitness.iter().map(|r| turnover + (-r).max(0.0)).collect();
+    if birth.iter().chain(&death).any(|r| !r.is_finite()) {
+        return Err("demographic rate overflow".into());
+    }
+    Ok((birth, death))
+}
+fn validate_population(
+    model: &PopulationModel,
+    counts: &[f64],
+    horizon: f64,
+) -> Result<(), String> {
+    if model.sites.is_empty()
+        || model.sites.len() > 12
+        || !horizon.is_finite()
+        || horizon < 0.0
+        || counts.len() != 1 << model.sites.len()
+        || counts.iter().any(|n| !n.is_finite() || *n < 0.0)
+        || model.birth.len() != counts.len()
+        || model.death.len() != counts.len()
+        || model
+            .birth
+            .iter()
+            .chain(&model.death)
+            .any(|r| !r.is_finite() || *r < 0.0)
+        || model
+            .sites
+            .iter()
+            .any(|s| !s.gain.is_finite() || s.gain < 0.0 || !s.loss.is_finite() || s.loss < 0.0)
+        || model.epochs.is_empty()
+    {
+        return Err("invalid finite-state population model".into());
+    }
+    let mut start = 0.0;
+    for e in &model.epochs {
+        if !e.end.is_finite()
+            || e.end <= start
+            || !e.gain_multiplier.is_finite()
+            || e.gain_multiplier < 0.0
+            || !e.loss_multiplier.is_finite()
+            || e.loss_multiplier < 0.0
+            || model.sites.iter().any(|s| {
+                !(s.gain * e.gain_multiplier).is_finite()
+                    || !(s.loss * e.loss_multiplier).is_finite()
+                    || !(s.gain * e.gain_multiplier + s.loss * e.loss_multiplier).is_finite()
+            })
+        {
+            return Err("invalid molecular exposure schedule".into());
+        }
+        start = e.end;
+    }
+    if start < horizon {
+        return Err("exposure schedule ends before prediction horizon".into());
+    }
+    Ok(())
+}
+fn population_epoch(model: &PopulationModel, time: f64) -> &ExposureEpoch {
+    model
+        .epochs
+        .iter()
+        .find(|e| time < e.end)
+        .unwrap_or_else(|| model.epochs.last().unwrap())
+}
+/// Derivative of expected absolute counts under transitions plus birth/death.
+pub fn population_rhs(
+    model: &PopulationModel,
+    counts: &[f64],
+    time: f64,
+) -> Result<Vec<f64>, String> {
+    validate_population(model, counts, time)?;
+    let epoch = population_epoch(model, time);
+    let mut derivative: Vec<_> = counts
+        .iter()
+        .enumerate()
+        .map(|(s, n)| n * (model.birth[s] - model.death[s]))
+        .collect();
+    for (s, n) in counts.iter().enumerate() {
+        for (i, site) in model.sites.iter().enumerate() {
+            let rate = if (s >> i) & 1 == 0 {
+                site.gain * epoch.gain_multiplier
+            } else {
+                site.loss * epoch.loss_multiplier
+            };
+            derivative[s] -= n * rate;
+            derivative[s ^ (1 << i)] += n * rate;
+        }
+    }
+    if derivative.iter().any(|v| !v.is_finite()) {
+        return Err("population derivative overflow".into());
+    }
+    Ok(derivative)
+}
+/// Exact instantaneous Price decomposition for normalized expected composition.
+/// It is not the expected composition of a finite population conditional on survival.
+pub fn population_decomposition(
+    model: &PopulationModel,
+    counts: &[f64],
+    time: f64,
+) -> Result<PopulationDecomposition, String> {
+    validate_population(model, counts, time)?;
+    let total: f64 = counts.iter().sum();
+    if !total.is_finite() || total <= 0.0 {
+        return Err("composition undefined for an empty population".into());
+    }
+    let epoch = population_epoch(model, time);
+    let p: Vec<_> = counts.iter().map(|n| n / total).collect();
+    let growth: Vec<_> = model
+        .birth
+        .iter()
+        .zip(&model.death)
+        .map(|(b, d)| b - d)
+        .collect();
+    let mean_net_growth = mean_weighted(&p, &growth);
+    let mut result = PopulationDecomposition {
+        methylation: vec![],
+        intrinsic_change: vec![],
+        selection_change: vec![],
+        mean_net_growth,
+    };
+    for (i, site) in model.sites.iter().enumerate() {
+        let m: f64 = p
+            .iter()
+            .enumerate()
+            .map(|(s, p)| p * f64::from((s >> i) & 1 == 1))
+            .sum();
+        let covariance: f64 = p
+            .iter()
+            .enumerate()
+            .map(|(s, p)| p * (f64::from((s >> i) & 1 == 1) - m) * (growth[s] - mean_net_growth))
+            .sum();
+        result.methylation.push(m);
+        result.intrinsic_change.push(
+            site.gain * epoch.gain_multiplier * (1.0 - m) - site.loss * epoch.loss_multiplier * m,
+        );
+        result.selection_change.push(covariance);
+    }
+    Ok(result)
+}
+fn mean_weighted(weights: &[f64], values: &[f64]) -> f64 {
+    weights.iter().zip(values).map(|(p, v)| p * v).sum()
+}
+/// Positivity-preserving Strang splitting of expected counts. Molecular updates
+/// are exact conditional independent-site CTMC transitions within each epoch;
+/// selection/transition coupling has O(dt^2) global error. Refine dt to verify.
+pub fn population_expectation(
+    model: &PopulationModel,
+    initial: &[f64],
+    horizon: f64,
+    dt: f64,
+) -> Result<Vec<f64>, String> {
+    validate_population(model, initial, horizon)?;
+    if !dt.is_finite() || dt <= 0.0 {
+        return Err("invalid population solver step".into());
+    }
+    let mut counts = initial.to_vec();
+    let mut time = 0.0;
+    while time < horizon {
+        let epoch = population_epoch(model, time);
+        let boundary = epoch.end.min(horizon);
+        let step = dt.min(boundary - time);
+        if step <= 0.0 || time + step == time {
+            return Err("population solver time step underflow".into());
+        }
+        let growth: Vec<_> = model
+            .birth
+            .iter()
+            .zip(&model.death)
+            .map(|(b, d)| ((b - d) * step / 2.0).exp())
+            .collect();
+        for (n, g) in counts.iter_mut().zip(&growth) {
+            *n *= g;
+        }
+        for (i, site) in model.sites.iter().enumerate() {
+            let gain = site.gain * epoch.gain_multiplier;
+            let loss = site.loss * epoch.loss_multiplier;
+            let from0 = probability(0.0, gain, loss, step);
+            let from1 = probability(1.0, gain, loss, step);
+            for s in 0..counts.len() {
+                if (s >> i) & 1 == 0 {
+                    let other = s | (1 << i);
+                    let unmethylated = counts[s];
+                    let methylated = counts[other];
+                    counts[s] = unmethylated * (1.0 - from0) + methylated * (1.0 - from1);
+                    counts[other] = unmethylated * from0 + methylated * from1;
+                }
+            }
+        }
+        for (n, g) in counts.iter_mut().zip(&growth) {
+            *n *= g;
+        }
+        if counts.iter().any(|n| !n.is_finite()) {
+            return Err("expected population overflow".into());
+        }
+        time = if step == boundary - time {
+            boundary
+        } else {
+            time + step
+        };
+    }
+    Ok(counts)
+}
+/// Exact branching CTMC under piecewise-constant exogenous molecular exposures.
+/// Birth preserves parental state and clone label; a molecular jump can change
+/// descendants later. Replication-linked strand-error inheritance is not modeled.
+/// Limits return errors rather than silently reporting truncated paths as predictions.
+pub fn simulate_population(
+    model: &PopulationModel,
+    initial: &[Vec<u64>],
+    horizon: f64,
+    seed: u64,
+    event_limit: usize,
+    population_limit: u64,
+) -> Result<ClonePopulation, String> {
+    if initial.is_empty() || event_limit == 0 || population_limit == 0 {
+        return Err("invalid branching simulation limits".into());
+    }
+    let states = model.birth.len();
+    if initial.iter().any(|r| r.len() != states) {
+        return Err("invalid clone state count matrix".into());
+    }
+    let mut population = initial
+        .iter()
+        .flatten()
+        .try_fold(0_u64, |a, b| a.checked_add(*b))
+        .ok_or("initial population overflow")?;
+    if population > population_limit {
+        return Err("initial population exceeds limit".into());
+    }
+    let aggregate: Vec<_> = (0..states)
+        .map(|s| initial.iter().map(|r| r[s] as f64).sum())
+        .collect();
+    validate_population(model, &aggregate, horizon)?;
+    let mut rng = StdRng::seed_from_u64(seed);
+    let mut counts = initial.to_vec();
+    let mut time = 0.0;
+    let mut events = 0;
+    let mut extinction_time = if population == 0 { Some(0.0) } else { None };
+    while time < horizon && population > 0 {
+        let epoch = population_epoch(model, time);
+        let boundary = epoch.end.min(horizon);
+        let mut total = 0.0;
+        for row in &counts {
+            for (s, n) in row.iter().enumerate() {
+                let mutations: f64 = model
+                    .sites
+                    .iter()
+                    .enumerate()
+                    .map(|(i, site)| {
+                        if (s >> i) & 1 == 0 {
+                            site.gain * epoch.gain_multiplier
+                        } else {
+                            site.loss * epoch.loss_multiplier
+                        }
+                    })
+                    .sum();
+                total += *n as f64 * (mutations + model.birth[s] + model.death[s]);
+            }
+        }
+        if !total.is_finite() {
+            return Err("branching event rate overflow".into());
+        }
+        let next = time + exponential(&mut rng, total);
+        if next >= boundary {
+            time = boundary;
+            continue;
+        }
+        if next <= time {
+            return Err("branching event time underflow".into());
+        }
+        time = next;
+        if events == event_limit {
+            return Err("branching event limit reached".into());
+        }
+        let mut draw = rng.gen::<f64>() * total;
+        let mut chosen = None;
+        'find: for (clone, row) in counts.iter().enumerate() {
+            for (s, n) in row.iter().enumerate() {
+                if *n == 0 {
+                    continue;
+                }
+                for event in 0..model.sites.len() + 2 {
+                    let rate = if event < model.sites.len() {
+                        let site = &model.sites[event];
+                        if (s >> event) & 1 == 0 {
+                            site.gain * epoch.gain_multiplier
+                        } else {
+                            site.loss * epoch.loss_multiplier
+                        }
+                    } else if event == model.sites.len() {
+                        model.birth[s]
+                    } else {
+                        model.death[s]
+                    };
+                    let mass = *n as f64 * rate;
+                    if draw < mass {
+                        chosen = Some((clone, s, event));
+                        break 'find;
+                    }
+                    draw -= mass;
+                }
+            }
+        }
+        let (clone, state, event) = chosen.ok_or("failed branching event sampling")?;
+        if event < model.sites.len() {
+            counts[clone][state] -= 1;
+            let target = state ^ (1 << event);
+            counts[clone][target] = counts[clone][target]
+                .checked_add(1)
+                .ok_or("clone count overflow")?;
+        } else if event == model.sites.len() {
+            if population == population_limit {
+                return Err("branching population limit reached".into());
+            }
+            counts[clone][state] = counts[clone][state]
+                .checked_add(1)
+                .ok_or("clone count overflow")?;
+            population += 1;
+        } else {
+            counts[clone][state] -= 1;
+            population -= 1;
+            if population == 0 {
+                extinction_time = Some(time);
+            }
+        }
+        events += 1;
+    }
+    Ok(ClonePopulation {
+        counts,
+        events,
+        extinction_time,
+        end_time: horizon,
+    })
+}
+
+#[cfg(test)]
+mod population_tests {
+    use super::*;
+    fn model(gain: f64, loss: f64, birth: Vec<f64>, death: Vec<f64>) -> PopulationModel {
+        PopulationModel {
+            sites: vec![MolecularSite { gain, loss }],
+            epochs: vec![ExposureEpoch {
+                end: 10.0,
+                gain_multiplier: 1.0,
+                loss_multiplier: 1.0,
+            }],
+            birth,
+            death,
+        }
+    }
+    #[test]
+    fn context_and_exposure_reduce_to_exact_ctmc_with_common_growth() {
+        let mut m = model(0.2, 0.1, vec![0.3; 2], vec![0.1; 2]);
+        m.epochs = vec![
+            ExposureEpoch {
+                end: 1.0,
+                gain_multiplier: 0.5,
+                loss_multiplier: 2.0,
+            },
+            ExposureEpoch {
+                end: 4.0,
+                gain_multiplier: 2.0,
+                loss_multiplier: 0.5,
+            },
+        ];
+        let counts = population_expectation(&m, &[80.0, 20.0], 3.0, 0.07).unwrap();
+        let expected = probability(probability(0.2, 0.1, 0.2, 1.0), 0.4, 0.05, 2.0);
+        assert!((counts.iter().sum::<f64>() - 100.0 * 0.6_f64.exp()).abs() < 1e-9);
+        assert!((counts[1] / counts.iter().sum::<f64>() - expected).abs() < 1e-12);
+    }
+    #[test]
+    fn selection_changes_bulk_without_molecular_repair_and_obeys_price() {
+        let fitness = state_fitness(&[true], &[1.0], 0.2, 0.3).unwrap();
+        let (birth, death) = state_demography(&fitness, 0.1).unwrap();
+        let m = model(0.0, 0.0, birth, death);
+        let decomposition = population_decomposition(&m, &[100.0, 100.0], 0.0).unwrap();
+        assert_eq!(decomposition.intrinsic_change, vec![0.0]);
+        assert!((decomposition.selection_change[0] - 0.075).abs() < 1e-12);
+        let counts = population_expectation(&m, &[100.0, 100.0], 5.0, 0.05).unwrap();
+        let expected = 1.0 / (1.0 + (-1.5_f64).exp());
+        assert!((counts[1] / counts.iter().sum::<f64>() - expected).abs() < 1e-12);
+        let rhs = population_rhs(&m, &[100.0, 100.0], 0.0).unwrap();
+        let derivative = rhs[1] / 200.0 - 0.5 * rhs.iter().sum::<f64>() / 200.0;
+        assert!((derivative - decomposition.selection_change[0]).abs() < 1e-12);
+        // Fitness can favor drift; biological identity value is not clone fitness.
+        let beneficial = state_fitness(&[true], &[-1.0], 0.2, 0.3).unwrap();
+        assert!(beneficial[0] > beneficial[1]);
+    }
+    #[test]
+    fn fitness_does_not_enter_intrinsic_transition_equation() {
+        let a = model(0.2, 0.1, vec![0.1; 2], vec![0.0; 2]);
+        let b = model(0.2, 0.1, vec![0.8, 0.1], vec![0.1, 0.3]);
+        let x = population_decomposition(&a, &[20.0, 80.0], 0.0).unwrap();
+        let y = population_decomposition(&b, &[20.0, 80.0], 0.0).unwrap();
+        assert_eq!(x.intrinsic_change, y.intrinsic_change);
+        assert_ne!(x.selection_change, y.selection_change);
+    }
+    #[test]
+    fn expected_count_solver_converges_to_exact_selected_chain() {
+        let m = model(0.3, 0.1, vec![0.2; 2], vec![0.05, 0.3]);
+        let exact = survivor_probability(0.25, 0.3, 0.1, 0.05, 0.3, 3.0)
+            .unwrap()
+            .0;
+        let error = |dt| {
+            let n = population_expectation(&m, &[75.0, 25.0], 3.0, dt).unwrap();
+            (n[1] / n.iter().sum::<f64>() - exact).abs()
+        };
+        assert!(error(0.05) < error(0.1) / 3.5);
+        assert!(error(0.01) < 1e-6);
+    }
+    #[test]
+    fn branching_counts_match_expectation_and_preserve_clone_labels() {
+        let m = model(0.2, 0.1, vec![0.15; 2], vec![0.05; 2]);
+        let expected = population_expectation(&m, &[50.0, 50.0], 2.0, 0.01).unwrap();
+        let mut totals = [0.0; 2];
+        for seed in 0..300 {
+            let path =
+                simulate_population(&m, &[vec![50, 0], vec![0, 50]], 2.0, seed, 10000, 10000)
+                    .unwrap();
+            assert_eq!(path.counts.len(), 2);
+            for (s, total) in totals.iter_mut().enumerate() {
+                *total += path.counts.iter().map(|r| r[s] as f64).sum::<f64>();
+            }
+        }
+        for (observed, expected) in totals.iter().zip(expected) {
+            assert!((observed / 300.0 - expected).abs() < 2.0);
+        }
+        let no_transition = model(0.0, 0.0, vec![0.15; 2], vec![0.05; 2]);
+        let path = simulate_population(
+            &no_transition,
+            &[vec![20, 0], vec![0, 20]],
+            2.0,
+            9,
+            10000,
+            10000,
+        )
+        .unwrap();
+        assert_eq!(path.counts[0][1], 0);
+        assert_eq!(path.counts[1][0], 0);
+    }
+    #[test]
+    fn extinction_and_simulation_limits_are_explicit() {
+        let death = model(0.0, 0.0, vec![0.0; 2], vec![4.0; 2]);
+        let path = simulate_population(&death, &[vec![1, 0]], 5.0, 1, 100, 100).unwrap();
+        assert_eq!(path.counts, vec![vec![0, 0]]);
+        assert!(path.extinction_time.is_some());
+        let birth = model(0.0, 0.0, vec![100.0; 2], vec![0.0; 2]);
+        assert!(simulate_population(&birth, &[vec![1, 0]], 5.0, 1, 100, 1).is_err());
+        assert!(population_expectation(&birth, &[1.0, 0.0], 11.0, 0.1).is_err());
+        assert!(population_decomposition(&death, &[0.0, 0.0], 0.0).is_err());
+    }
+}

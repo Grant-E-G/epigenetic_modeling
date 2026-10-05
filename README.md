@@ -8,6 +8,8 @@ The model specification is in [notes/epigenetic_drift_model_spec_v2.md](notes/ep
 
 The equations are revisable; the biological objective is not. A distinctive mechanism must make a restrictive, prospectively specified biological prediction that survives testing in a new condition and cannot be rescued by condition-specific refitting. Better curve fitting, age prediction, or latent-state flexibility alone does not establish biological value. Compare against strong empirical predictors, freeze external functional annotations before outcomes, and distinguish intrinsic restoration from changing clone representation. Negative tests must narrow or retire claims rather than trigger unrestricted complexity. See [the research plan](notes/research_plan.md#biological-prediction-contract-2026-10-03) for the decision rules and current experiment direction.
 
+Revision 3 puts external functional effects in state-dependent cell fitness, with context/exposure-driven molecular transitions and explicit clone birth/death. The [power audit](code/results/functional_power_audit.md) finds no support for the measured functional-recovery prediction, but modest effects were poorly detectable: conditional detection was 37%, 49%, 76% and 98% for 3%, 5%, 10% and 20% oracle error reductions. This does not validate selection. The [novelty assessment](notes/reading_list.md#revision-3-novelty-assessment-2026-10-04) applies two gates: academic originality and a prediction that changes a biological experiment. The broad architecture has prior art; neither a validated transfer prediction nor an actionable target panel has been earned.
+
 ## Repository Layout
 
 - `notes/`: research plans, reading notes, project logs, and informal planning.
