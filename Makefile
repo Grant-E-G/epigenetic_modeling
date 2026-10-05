@@ -1,4 +1,4 @@
-.PHONY: download verify-data reproduce followup validation recovery check
+.PHONY: download verify-data reproduce followup validation recovery broad-download broad-validation check
 
 download:
 	bash code/download.sh
@@ -31,3 +31,11 @@ validation: verify-data
 # Recovery pilot: uses the frozen human feature table produced by reproduce/annotate.
 recovery: verify-data
 	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- validation data/raw code/results recovery
+
+broad-download:
+	bash code/download.sh --broad
+
+broad-validation:
+	data/tools/format-env/bin/python code/convert_public_data.py broad-verify
+	data/tools/format-env/bin/python code/convert_public_data.py broad
+	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- validation data/raw code/results broad

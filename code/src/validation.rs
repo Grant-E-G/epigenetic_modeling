@@ -26,7 +26,7 @@ fn soft_samples(path: &str) -> Result<Vec<BTreeMap<String, String>>> {
     }
     Ok(samples)
 }
-fn quantile(mut values: Vec<f64>, q: f64) -> f64 {
+pub(crate) fn quantile(mut values: Vec<f64>, q: f64) -> f64 {
     values.retain(|x| x.is_finite());
     values.sort_by(f64::total_cmp);
     if values.is_empty() {
@@ -309,6 +309,7 @@ fn prepare_functional(root: &str, out: &str) -> Result<()> {
 
 pub fn run(root: &str, out: &str, command: &str) -> Result<()> {
     match command {
+        "broad" => crate::broad_validation::run(root, out)?,
         "prepare"=>prepare_functional(root,out)?,
         "rna"=>{functional_rna(root,out,8.0)?;functional_rna(root,out,32.0)?;},
         "kinetics"=>maintenance_kinetics(out)?,

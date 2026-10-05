@@ -7,7 +7,16 @@ cell IDs and independent LARRY labels; never infer clones from CpGs in this conv
 from __future__ import annotations
 
 import csv
+import gzip
+import hashlib
+import json
+import sys
 import tarfile
+import time
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -130,5 +139,237 @@ def main() -> None:
     )
 
 
+def canonical_sequence(data: bytes) -> bytes:
+    """Discard API retrieval timestamps, preserving reference sequence identity."""
+    obj = json.loads(data)
+    stable = {
+        key: obj[key]
+        for key in ["genome", "chrom", "start", "end", "dna"]
+        if key in obj
+    }
+    return (json.dumps(stable, sort_keys=True) + "\n").encode()
+
+
+def broad_inputs(download: bool) -> None:
+    """Acquire frozen public inputs by recorded byte range and verify content."""
+    for manifest in ["broad_data_manifest.csv", "broad_reference_manifest.csv"]:
+        with Path(f"code/results/{manifest}").open() as handle:
+            for row in csv.DictReader(handle):
+                path = Path(row["path"])
+                if not path.exists() and download:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    partial = path.with_suffix(path.suffix + ".partial")
+                    span = row["archive_byte_range"]
+                    chunks: list[tuple[int, int] | None] = []
+                    if span:
+                        start, end = map(int, span.split("-"))
+                        chunks = [
+                            (a, min(a + 8 * 1024 * 1024 - 1, end))
+                            for a in range(start, end + 1, 8 * 1024 * 1024)
+                        ]
+                    with partial.open("wb") as output:
+                        for chunk in chunks or [None]:
+                            headers = (
+                                {"Range": f"bytes={chunk[0]}-{chunk[1]}"}
+                                if chunk
+                                else {}
+                            )
+                            request = urllib.request.Request(
+                                row["source_url"], headers=headers
+                            )
+                            for attempt in range(4):
+                                try:
+                                    try:
+                                        with urllib.request.urlopen(
+                                            request, timeout=90
+                                        ) as response:
+                                            data = response.read()
+                                            if (
+                                                chunk
+                                                and response.headers.get(
+                                                    "Content-Range", ""
+                                                ).split("/")[0]
+                                                != f"bytes {chunk[0]}-{chunk[1]}"
+                                            ):
+                                                raise ValueError(
+                                                    "server did not honor requested archive range"
+                                                )
+                                    except urllib.error.HTTPError as error:
+                                        # One hg38 numeric interval is past chr19's end;
+                                        # preserve that negative assembly check as empty JSON.
+                                        if (
+                                            error.code != 400
+                                            or path.name != "guide_region_25_hg38.json"
+                                        ):
+                                            raise
+                                        data = error.read()
+                                    if chunk and len(data) != chunk[1] - chunk[0] + 1:
+                                        raise ValueError("incomplete archive range")
+                                    if path.name.startswith("guide_region_"):
+                                        data = canonical_sequence(data)
+                                    output.write(data)
+                                    break
+                                except (OSError, ValueError):
+                                    if attempt == 3:
+                                        raise
+                                    time.sleep(2)
+                    if (
+                        hashlib.sha256(partial.read_bytes()).hexdigest()
+                        != row["sha256"]
+                    ):
+                        raise ValueError(f"download checksum mismatch: {path}")
+                    partial.replace(path)
+                if (
+                    path.stat().st_size != int(row["bytes"])
+                    or hashlib.sha256(path.read_bytes()).hexdigest() != row["sha256"]
+                ):
+                    raise ValueError(f"input checksum mismatch: {path}")
+    print("Verified all frozen broad-validation inputs and reference sequences.")
+
+
+def broad_formats() -> None:
+    """Decode XLSX and translate intact reference intervals; no statistical fitting."""
+    root = Path("data/raw/broad_validation")
+    target = Path("data/derived")
+    target.mkdir(parents=True, exist_ok=True)
+    ns = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+
+    def sheets(path: Path) -> list[list[list[str]]]:
+        result = []
+        with zipfile.ZipFile(path) as archive:
+            strings = [
+                "".join(node.itertext())
+                for node in ET.fromstring(archive.read("xl/sharedStrings.xml"))
+            ]
+            for name in sorted(archive.namelist()):
+                if not name.startswith("xl/worksheets/sheet") or not name.endswith(
+                    ".xml"
+                ):
+                    continue
+                rows = []
+                for node in ET.fromstring(archive.read(name)).findall(".//s:row", ns):
+                    values: dict[int, str] = {}
+                    for cell in node.findall("s:c", ns):
+                        column = 0
+                        for letter in cell.attrib["r"]:
+                            if letter.isalpha():
+                                column = column * 26 + ord(letter) - ord("A") + 1
+                        value = cell.find("s:v", ns)
+                        if value is not None:
+                            values[column - 1] = (
+                                strings[int(value.text or "0")]
+                                if cell.attrib.get("t") == "s"
+                                else value.text or ""
+                            )
+                    rows.append(
+                        [values.get(i, "") for i in range(max(values, default=-1) + 1)]
+                    )
+                result.append(rows)
+        return result
+
+    with (target / "broad_screen.tsv").open("w") as handle:
+        output = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        for i, rows in enumerate(sheets(root / "screen_S9.xlsx")):
+            output.writerows(rows if i == 0 else rows[1:])
+
+    # UCSC chain target is hg19; query is hg38. Map only entire intervals
+    # contained in one aligned block, retaining strand and unique mapping.
+    blocks: dict[str, list[tuple[int, int, str, int, int, str]]] = {}
+    with gzip.open(root / "hg19ToHg38.over.chain.gz", "rt") as handle:
+        for line in handle:
+            parts = line.split()
+            if not parts:
+                continue
+            if parts[0] == "chain":
+                chrom, pos = parts[2], int(parts[5])
+                qchrom, qsize, strand, qpos = (
+                    parts[7],
+                    int(parts[8]),
+                    parts[9],
+                    int(parts[10]),
+                )
+                assert parts[4] == "+"
+            else:
+                size = int(parts[0])
+                blocks.setdefault(chrom, []).append(
+                    (pos, pos + size, qchrom, qpos, qsize, strand)
+                )
+                pos += size + (int(parts[1]) if len(parts) == 3 else 0)
+                qpos += size + (int(parts[2]) if len(parts) == 3 else 0)
+
+    def reverse(sequence: str) -> str:
+        return sequence.translate(str.maketrans("ACGT", "TGCA"))[::-1]
+
+    with (target / "broad_regions.tsv").open("w") as handle:
+        output = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        output.writerow(
+            [
+                "gene",
+                "chrom",
+                "start",
+                "end",
+                "assembly",
+                "hg19_guides",
+                "hg38_guides",
+                "mapping",
+                "cpg_density",
+            ]
+        )
+        for i, row in enumerate(sheets(root / "screen_guides_S8.xlsx")[0][1:]):
+            chrom, span = row[5].split(":")
+            start, end = map(int, span.split("-"))
+            start -= 1
+            sequences = [row[10].upper(), row[15].upper()]
+            dna = {}
+            hits = {}
+            for assembly in ["hg19", "hg38"]:
+                dna[assembly] = (
+                    json.loads((root / f"guide_region_{i}_{assembly}.json").read_text())
+                    .get("dna", "")
+                    .upper()
+                )
+                hits[assembly] = sum(
+                    bool(s) and (s in dna[assembly] or reverse(s) in dna[assembly])
+                    for s in sequences
+                )
+            assembly = (
+                "hg19"
+                if hits["hg19"] == 2 and hits["hg38"] != 2
+                else "hg38" if hits["hg38"] == 2 and hits["hg19"] != 2 else "ambiguous"
+            )
+            mappings = []
+            if assembly == "hg19":
+                for a, b, qc, qp, qs, strand in blocks.get(chrom, []):
+                    if a <= start and end <= b:
+                        x, y = qp + start - a, qp + end - a
+                        mappings.append(
+                            (qc, x, y) if strand == "+" else (qc, qs - y, qs - x)
+                        )
+            elif assembly == "hg38":
+                mappings = [(chrom, start, end)]
+            mapped = mappings[0] if len(mappings) == 1 else ("NA", 0, 0)
+            source = dna.get(assembly, "")
+            density = source.count("CG") / max(1, len(source))
+            output.writerow(
+                [
+                    row[1],
+                    *mapped,
+                    assembly,
+                    hits["hg19"],
+                    hits["hg38"],
+                    "unique" if len(mappings) == 1 else "unresolved",
+                    density,
+                ]
+            )
+    print("Decoded screen wells and sequence-checked, translated edited regions.")
+
+
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["broad"]:
+        broad_formats()
+    elif sys.argv[1:] == ["broad-download"]:
+        broad_inputs(True)
+    elif sys.argv[1:] == ["broad-verify"]:
+        broad_inputs(False)
+    else:
+        main()

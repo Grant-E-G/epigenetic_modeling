@@ -1,6 +1,6 @@
 # Rust stochastic methylation model
 
-A single Rust crate keeps related numerical/model code in `src/lib.rs` and data analysis/reporting in `src/main.rs`. Rust 1.88+, `curl`, `unzip`, `pdftotext`, GNU `sha256sum`; the core model needs no Python runtime. Public-data validation uses a pinned Python format decoder for MATLAB/R files. `Cargo.lock` pins the small dependency set. Analyses use seed 20261003; public API simulation seeds are explicit.
+A single Rust crate keeps numerical/model code in `src/lib.rs` and related data workflows in `src/main.rs`, `src/validation.rs` and `src/broad_validation.rs`. Rust 1.88+, `curl`, `unzip`, `pdftotext`, GNU `sha256sum`; the core model needs no Python runtime. Public-data validation uses a pinned Python format decoder for MATLAB/R/XLSX files. `Cargo.lock` pins the small dependency set. Analyses use seed 20261003; public API simulation seeds are explicit.
 
 From the repository root:
 
@@ -67,3 +67,17 @@ The RNA test uses only controls, four donors under strict initial-time matching 
 ## Functional recovery pilot
 
 `make recovery` tests externally defined BAGEL core-essential versus reference-nonessential gene-body loci in HCT116 after a methylation pulse/washout (GSE51810/51811). It requires the existing `data/derived/human_features.tsv`; run `annotate` first on a fresh checkout. Five new checksum-frozen inputs add about 81 MB compressed. Both the original matching and a later baseline-RNA-detection audit are retained as `recovery_*` and `recovery_detected_*`; tighter matching is exploratory. Only baseline and day5 DNA, baseline RNA and external context determine eligibility/matches. Negative processed RNA intensities are unavailable for log2 transformation, and later RNA missingness never excludes loci from the DNA test. The Rust routine uses titles because GEO characteristic labels are inconsistent. There is one methylation array per condition/time: matched-locus bootstrap intervals describe heterogeneity, not independent biological validation. The proposed experiment and revised mechanistic commitments are in [the experiment brief](../notes/experiment_brief.md).
+
+## Public-data stopping tests
+
+With the pinned format environment already installed:
+
+```sh
+make broad-download       # network; only missing frozen inputs, TAR byte ranges
+make broad-validation     # checksum verification, conversion, Rust inference offline
+make check
+```
+
+`broad_data_manifest.csv` freezes 34 primary inputs (~1 GB compressed); `broad_reference_manifest.csv` freezes the chain and 114 assembly-check sequences. Reference JSON is canonicalized to stable genome/interval/DNA fields, removing API retrieval timestamps. One out-of-bounds hg38 chr19 response is an explicit empty reference check. Changed sequence, chain or source content fails verification; the downloader never updates expected hashes. Archived RRBS members are downloaded in checked 8 MB ranges, avoiding a 6 GB TAR download. Human files use the authors' **five-column BED format: chromosome, zero-based start, end, total count, methylated count**, not standard six-column Bismark coverage. The mouse amplicon tables use fractions; the genome table uses percentages. Species and assemblies are kept separate.
+
+All statistics and fitting live in the single related `broad_validation.rs` module. `convert_public_data.py` handles acquisition, integrity checks, XLSX decoding and intact-chain coordinate translation only. The CLI is `validation data/raw code/results broad`. Coverage/perturbation gates, independent scores and primary splits are documented before outcomes in `notes/research_plan.md`; post-result checks are explicitly exploratory. `broad_validation.md` contains full gate/penalty results and limitations. Primary regional predictions, functional scores, controls and summary tables are versioned; sensitivity forecasts and large CpG count/forecast tables are regenerated under ignored `data/derived/`. No new Rust dependency is required. Black, mypy, formatting, strict Clippy and meaningful numerical/missingness/held-out tests check the implementation.

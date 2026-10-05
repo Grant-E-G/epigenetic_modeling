@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [[ "${1:-}" == "--broad" ]]; then
+  data/tools/format-env/bin/python code/convert_public_data.py broad-download
+  exit
+fi
 mkdir -p data/raw
 fetch() {
   local name="$1" url="$2"
