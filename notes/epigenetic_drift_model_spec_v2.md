@@ -4,6 +4,8 @@
 
 ## Decision and scope
 
+The [2026-10-09 dog-aging audit](../code/results/dog_aging_falsification.md) tests the historical essential-gene stability proxy, with no decisive support/rejection. It does not adjudicate this revision's independently calibrated clone-fitness prediction. Sparse coverage, local-importance uncertainty and broad intervals are reported as limitations; none is fitted away or counted as positive evidence. The current mechanism remains unsupported and wet experiments remain deferred.
+
 Keep stochastic bounded states and intervention-dependent maintenance. Place independently measured functional consequences in cell fitness, not in intrinsic restoration or noise. Do not infer selection from the failure of protection: it is a separate, unvalidated mechanism. Constant rates remain a nested control within conditions where a time-dependent effect is unsupported; they are not universally biologically invalid.
 
 The power audit does **not** establish that modest protection effects are absent. The primary physical-bound simulation detects available oracle MSE reductions of 3/5/10/20% with approximately 37/49/76/98% probability. Observed prediction deterioration is ordinary under score permutations. These are conditional regression detectability results, not power for a kinetic-rate effect or independent cultures. The tested functional predictor remains unsupported; permanent biological falsification would overstate the evidence.

@@ -1,4 +1,5 @@
 mod broad_validation;
+mod dog_aging;
 mod validation;
 use epidrift::*;
 use flate2::read::MultiGzDecoder;
@@ -2158,6 +2159,8 @@ fn main() -> Result<()> {
     let out = args.get(3).map(String::as_str).unwrap_or("code/results");
     fs::create_dir_all(format!("{out}/posterior_predictive_checks"))?;
     match cmd {
+        "dog-aging" => dog_aging::run(root, out, args.get(4).map(String::as_str).unwrap_or("all"))?,
+        "dog-aging-audit" => dog_aging::audit(out)?,
         "baseline" => {
             let c = cells(root, out)?;
             baseline(&c, out)?;

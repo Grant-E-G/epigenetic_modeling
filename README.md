@@ -2,6 +2,8 @@
 
 Research on methylation maintenance, functional constraint, selection and identity loss.
 
+The [Dog Aging Project falsification audit](code/results/dog_aging_falsification.md) tests an independent essential-gene proxy in longitudinal PBMC methylation. Protection is not robustly supported or rejected: estimates change sign across context/coverage choices, intervals remain wide, and the promoter comparison fails its support gate. The cohort does not identify intrinsic protection or externally calibrated clone selection; the prior experimental stopping decision remains in force.
+
 The model specification is in [notes/epigenetic_drift_model_spec_v2.md](notes/epigenetic_drift_model_spec_v2.md). The compact Rust implementation and reproducibility commands are in [code/README.md](code/README.md), current results in [code/results/results.md](code/results/results.md), extended biological tests in [code/results/six_test_validation.md](code/results/six_test_validation.md), and the annotated literature review in [notes/reading_list.md](notes/reading_list.md). The [public-data stopping tests](code/results/broad_validation.md) find no incremental recovery prediction from independent local functional scores; known enzyme dynamics remain useful but do not establish our distinctive mechanism. The current [stopping assessment](notes/experiment_brief.md#computational-stopping-assessment-2026-10-04) defers wet experiments and records what would justify reopening the hypothesis.
 
 ## Scientific requirement

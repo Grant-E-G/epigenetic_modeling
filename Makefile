@@ -1,4 +1,4 @@
-.PHONY: download verify-data reproduce followup validation recovery broad-download broad-validation power check
+.PHONY: download verify-data reproduce followup validation recovery broad-download broad-validation power dog-download dog-validation check
 
 download:
 	bash code/download.sh
@@ -43,3 +43,12 @@ broad-validation:
 # Rebuild the exact observed audit design before conditional resampling.
 power: broad-validation
 	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- validation data/raw code/results power
+
+# Frozen dog cohort counts/reference files; format environment is described in code/README.md.
+dog-download:
+	data/tools/format-env/bin/python code/dog_aging_data.py download
+
+dog-validation:
+	data/tools/format-env/bin/python code/dog_aging_data.py decode
+	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- dog-aging data/raw code/results all
+	cargo run --release --locked --offline --manifest-path code/Cargo.toml -- dog-aging-audit data/raw code/results

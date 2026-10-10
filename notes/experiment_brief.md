@@ -2,6 +2,8 @@
 
 ## Current decision: computational stopping point; defer lab work
 
+The [2026-10-09 Dog Aging Project attempted falsification](../code/results/dog_aging_falsification.md) leaves this decision in place. The larger longitudinal cohort does not provide decisive essential-gene-proxy protection or rejection: sparse jointly covered matches and unstable context/coverage contrasts leave broad intervals. It does not supply direct local methylation necessity or clone-conditioned state/count observations, so it cannot validate intrinsic protection or revision-3 external-fitness transfer. No dog-derived target panel earns a wet experiment.
+
 The user requests further computational validation before committing to any experiment. The acquired public-data stopping tests are complete; see the assessment below. No target panel currently earns a model-driven wet experiment. Earlier costing and candidate plans are historical references, not spending recommendations. C5R is still assumed to have no mammalian workflow; no outreach or lab work is authorized by this analysis.
 
 ## Computational stopping assessment (2026-10-04)

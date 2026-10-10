@@ -1,0 +1,11 @@
+metric,value
+samples,1640
+matrix_regions,204490
+excluded_labeled_aggregate_rows,20338
+annotated_proxy_candidates,2106
+baseline_eligible_regions,1352
+zero_coverage_calls,17295092
+matrix_calls,335363600
+coordinate_audit_regions,2000
+zero_based_start_CpG,0
+one_based_start_CpG,2000

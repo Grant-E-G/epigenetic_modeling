@@ -1,5 +1,11 @@
 # Research plan: constrained stochastic methylation drift
 
+## Dog Aging Project falsification audit (2026-10-09; before matrix outcomes)
+
+User authorizes acquisition and analysis to attempt to invalidate the distinctive functional-protection claim. The frozen [dog analysis protocol](dog_aging_protocol.md) governs this new test. The historical direct-protection hypothesis and revision-3 externally calibrated cell-fitness hypothesis are separate targets; neither may be rescued by substituting the other after outcomes. Gene essentiality is an independently defined proxy, not validated local methylation necessity. Failure of measurement/annotation compatibility is not biological rejection. Preserve all negative results and do not add outcome-selected functional masks.
+
+Completed: [the dog falsification report](../code/results/dog_aging_falsification.md) finds no decisive proxy protection/rejection, with sign changes across context/coverage choices, broad dog/gene resampling intervals and weak conditional endpoint power. Promoters fail genomic support and bulk PBMC data cannot test external-fitness clone transfer. The initial singleton-context result and its post-result flank correction are both retained. No distinctive claim or target panel is validated, and the prior experimental stopping decision remains.
+
 Build a falsifiable distinction between intrinsic maintenance/restoration and survival/clone representation at externally defined functionally weighted loci. The design specification is [epigenetic_drift_model_spec_v2.md](epigenetic_drift_model_spec_v2.md); preimplementation corrections are in [model_review.md](model_review.md).
 
 Completed initial work: obtain the three Tier 1 methylation datasets, implement compact Rust model/measurement/simulation/inference components, reproduce empirical age/longitudinal summaries, run held-out approximate baselines and a one-snapshot protection/selection counterexample, and populate [the annotated literature review](reading_list.md). See [the results and limitations](../code/results/results.md).

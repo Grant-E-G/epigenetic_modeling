@@ -88,3 +88,23 @@ make check
 All statistics and fitting live in the single related `broad_validation.rs` module. `convert_public_data.py` handles acquisition, integrity checks, XLSX decoding and intact-chain coordinate translation only. The CLI is `validation data/raw code/results broad`. Coverage/perturbation gates, independent scores and primary splits are documented before outcomes in `notes/research_plan.md`; post-result checks are explicitly exploratory. `broad_validation.md` contains full gate/penalty results and limitations. Primary regional predictions, functional scores, controls and summary tables are versioned; sensitivity forecasts and large CpG count/forecast tables are regenerated under ignored `data/derived/`. No new Rust dependency is required. Black, mypy, formatting, strict Clippy and meaningful numerical/missingness/held-out tests check the implementation.
 
 The `power` subcommand reads the regenerated `data/derived/broad_power_design.csv`, uses 999 global and within-batch score permutations, 500 region bootstraps and 2,000 injections per effect size/generator. Compact outputs are `functional_power_audit.md`, `functional_power_summary.csv` and `functional_power_injection.csv`; full draws remain ignored. Injection sizes describe oracle available recovery-fraction signal, not kinetic-rate effects or guaranteed fitted improvement. Power conditions on this observed single-culture design and treats scores as error-free. Current data do not jointly support the revised external-fitness/longitudinal-clone transfer test; historical biological results must not be relabeled as its validation.
+
+## Dog Aging Project falsification audit
+
+The [report](results/dog_aging_falsification.md) and [frozen protocol](../notes/dog_aging_protocol.md) distinguish an essential-gene stability proxy from actual local methylation necessity and revision-3 clone fitness. Fifteen checksum-frozen sources include 1,640-sample regional methylated/total counts, author sample/batch metadata, canFam4 RefSeq/CpG islands/reference sequence, NCBI orthology and the existing BAGEL lists (~1.5 GB compressed/packed). Mutable orthology and UCSC annotations must not silently update. All downloaded data and observation caches remain ignored.
+
+With the existing pinned format environment:
+
+```sh
+make dog-download       # network; acquire missing files, verify all hashes
+make dog-validation     # offline verification/metadata decoding, Rust analysis and power audit
+make check
+data/tools/format-env/bin/black --check code/dog_aging_data.py
+data/tools/format-env/bin/mypy --ignore-missing-imports code/dog_aging_data.py
+```
+
+`dog_aging_data.py` only acquires/verifies inputs and decodes the R dataframe. Rust in `src/dog_aging.rs` validates every matrix count/ID, verifies one-based CpG coordinates against 2,000 reference starts, joins unique orthologs, matches using training first visits, evaluates withheld dogs, resamples whole dogs/gene pairs and runs conditional endpoint-power simulations. No new package or Rust dependency is introduced. `dog-aging [raw] [results] primary|all` runs the flank-context audit; `dog-aging-audit [raw] [results]` uses regenerated observation caches for diagnostics and conditional power. `all` includes the four prespecified coverage/age sensitivities. Summary files are overwritten on rerun; annotations and matching are deterministic, seeds explicit.
+
+The initial interval-only sequence match had uninformative GC/CpG covariates at singleton CpGs. Its negative estimate is preserved under `results/dog_aging_interval_context/`. To reproduce it separately, run `dog-aging data/raw code/results/dog_aging_interval_context interval`; this also writes its own orthology/dog tables. It uses the same source files and the original RNG sequence, with a separate `interval_observations` cache. The corrected flank results are transparently **post-result**, not an untouched preregistration. Different read gates reverse the point estimate; no preferred sensitivity is promoted to validation or rejection. All promoter comparisons fall far below the 20-pair support gate.
+
+Conditional power uses dog-level wild residuals with the observed control mean, 10,000 calibration draws and 10,000 draws per 0/5/10/20% endpoint effect, a 98.75th-percentile one-sided null cutoff, and seed 20261010. It assumes independent dogs and fixed gene masks; it is not power for clone selection, a kinetic rate or direct locally validated methylation effects. Binomial variance correction cannot remove pooled-CpG read dependence, overdispersion or batch/composition confounding. Numeric reports are regenerated; the narrative assessment and protocol remain authored records.
